@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { generarFormularioGP, generarAnexoGSP } from "./sriExport";
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const C = {
@@ -474,34 +475,32 @@ function DeclaracionDesktop({ facturas, perfil, updatePerfil, savePerfil, syncSt
   const limite = calcLimite(salarioAnual, cargas);
   const perfilValido = perfil.cedula && perfil.nombre && perfil.salario;
 
-  const handleGenerate = () => { setGenerating(true); setTimeout(() => { setGenerating(false); setGenerated(true); }, 2000); };
+  const handleGenerateGP = () => {
+    setGenerating(true);
+    setTimeout(() => {
+      generarFormularioGP({ perfil, facturas, rebaja, salarioAnual, cargas });
+      setGenerating(false);
+      setGenerated(true);
+    }, 800);
+  };
 
-  const handleDownload = () => {
-    const rows = [
-      ["FORMULARIO SRI-GP 2025"], [""],
-      ["CAMPO", "DESCRIPCIÓN", "VALOR"],
-      ["101", "Cédula", perfil.cedula],
-      ["102", "Nombres", perfil.nombre],
-      ["103", "Ingresos con empleador (anual)", fmt(salarioAnual)],
-      ["104", "Ingresos otros empleadores", fmt(parseFloat(perfil.otrosIngresos || 0) * 12)],
-      ["105", "Total ingresos proyectados", fmt(salarioAnual + parseFloat(perfil.otrosIngresos || 0) * 12)],
-      ["106", "Gastos Vivienda", fmt((catTotals["Vivienda"] || 0) * 12)],
-      ["107", "Gastos Educación Arte y Cultura", fmt((catTotals["Educación"] || 0) * 12)],
-      ["108", "Gastos Salud", fmt((catTotals["Salud"] || 0) * 12)],
-      ["109", "Gastos Vestimenta", fmt((catTotals["Vestimenta"] || 0) * 12)],
-      ["110", "Gastos Alimentación", fmt((catTotals["Alimentación"] || 0) * 12)],
-      ["111", "Gastos Turismo", fmt((catTotals["Turismo"] || 0) * 12)],
-      ["112", "Total gastos proyectados", fmt(totalDeducible * 12)],
-      ["113", "Enfermedad catastrófica", perfil.enfermedadCatastrofica ? "SÍ" : "NO"],
-      ["114", "Cargas familiares", perfil.cargas || "0"],
-      ["115", "Rebaja IR", fmt(rebaja)],
-    ];
-    const csv = rows.map(r => r.join(",")).join("\n");
-    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `Formulario_GP_2025_${perfil.cedula || "SRI"}.csv`;
-    a.click();
+  const handleGenerateAnexo = () => {
+    setGenerating(true);
+    setTimeout(() => {
+      generarAnexoGSP({ perfil, facturas });
+      setGenerating(false);
+      setGenerated(true);
+    }, 800);
+  };
+
+  const handleGenerateAmbos = () => {
+    setGenerating(true);
+    setTimeout(() => {
+      generarFormularioGP({ perfil, facturas, rebaja, salarioAnual, cargas });
+      generarAnexoGSP({ perfil, facturas });
+      setGenerating(false);
+      setGenerated(true);
+    }, 800);
   };
 
   const inputStyle = { width: "100%", padding: "10px 14px", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, color: C.text, fontSize: 13, outline: "none", fontFamily: "DM Sans, sans-serif" };
@@ -671,17 +670,17 @@ function DeclaracionDesktop({ facturas, perfil, updatePerfil, savePerfil, syncSt
             </div>
 
             {!generated ? (
-              <button onClick={handleGenerate} disabled={!perfilValido || generating} style={{ padding: "13px 28px", background: perfilValido ? C.yellow : C.border, color: perfilValido ? C.green : C.textDim, border: "none", borderRadius: 10, fontSize: 14, fontWeight: 800, cursor: perfilValido ? "pointer" : "not-allowed", fontFamily: "DM Sans, sans-serif" }}>
-                {generating ? "Generando..." : "Generar Formulario GP (.csv)"}
+              <button onClick={handleGenerateGP} disabled={!perfilValido || generating} style={{ padding: "13px 28px", background: perfilValido ? C.yellow : C.border, color: perfilValido ? C.green : C.textDim, border: "none", borderRadius: 10, fontSize: 14, fontWeight: 800, cursor: perfilValido ? "pointer" : "not-allowed", fontFamily: "DM Sans, sans-serif" }}>
+                {generating ? "Generando..." : "⬇️ Generar y Descargar Formulario GP (.xlsx)"}
               </button>
             ) : (
               <div style={{ display: "flex", alignItems: "center", gap: 14, background: C.greenAccent + "15", border: `1px solid ${C.greenAccent}30`, borderRadius: 12, padding: "14px 18px" }}>
                 <span style={{ fontSize: 24 }}>📊</span>
                 <div style={{ flex: 1 }}>
-                  <p style={{ color: C.greenAccent, fontSize: 13, fontWeight: 700 }}>Formulario_GP_2025.csv listo</p>
-                  <p style={{ color: C.textDim, fontSize: 11 }}>Compatible con Excel · {new Date().toLocaleDateString("es-EC")}</p>
+                  <p style={{ color: C.greenAccent, fontSize: 13, fontWeight: 700 }}>Formulario_GP_{new Date().getFullYear()}.xlsx descargado</p>
+                  <p style={{ color: C.textDim, fontSize: 11 }}>Archivo Excel con formato oficial SRI · {new Date().toLocaleDateString("es-EC")}</p>
                 </div>
-                <button onClick={handleDownload} style={{ padding: "10px 20px", background: C.yellow, color: C.green, border: "none", borderRadius: 8, fontSize: 13, fontWeight: 800, cursor: "pointer", fontFamily: "DM Sans, sans-serif" }}>⬇️ Descargar</button>
+                <button onClick={handleGenerateGP} style={{ padding: "10px 20px", background: C.yellow, color: C.green, border: "none", borderRadius: 8, fontSize: 13, fontWeight: 800, cursor: "pointer", fontFamily: "DM Sans, sans-serif" }}>⬇️ Descargar de nuevo</button>
                 <button onClick={() => setGenerated(false)} style={{ padding: "10px 16px", background: "transparent", color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 13, cursor: "pointer", fontFamily: "DM Sans, sans-serif" }}>Regenerar</button>
               </div>
             )}
@@ -720,13 +719,14 @@ function DeclaracionDesktop({ facturas, perfil, updatePerfil, savePerfil, syncSt
             </div>
           </div>
           <div style={{ display: "flex", gap: 12 }}>
-            <button onClick={handleGenerate} style={{ padding: "12px 24px", background: C.yellow, color: C.green, border: "none", borderRadius: 10, fontSize: 14, fontWeight: 800, cursor: "pointer", fontFamily: "DM Sans, sans-serif" }}>
-              {generating ? "Generando..." : "Generar Anexo GSP (.csv)"}
+            <button onClick={handleGenerateAnexo} disabled={!perfilValido || generating} style={{ padding: "12px 24px", background: perfilValido ? C.yellow : C.border, color: perfilValido ? C.green : C.textDim, border: "none", borderRadius: 10, fontSize: 14, fontWeight: 800, cursor: perfilValido ? "pointer" : "not-allowed", fontFamily: "DM Sans, sans-serif" }}>
+              {generating ? "Generando..." : "⬇️ Generar Anexo GSP (.xlsx)"}
             </button>
-            <button style={{ padding: "12px 24px", background: "transparent", color: C.yellow, border: `2px solid ${C.yellow}40`, borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "DM Sans, sans-serif" }}>
-              Generar ambos formularios
+            <button onClick={handleGenerateAmbos} disabled={!perfilValido || generating} style={{ padding: "12px 24px", background: "transparent", color: C.yellow, border: `2px solid ${C.yellow}40`, borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: perfilValido ? "pointer" : "not-allowed", fontFamily: "DM Sans, sans-serif" }}>
+              ⬇️ Generar ambos formularios
             </button>
           </div>
+          {!perfilValido && <p style={{ color: C.textDim, fontSize: 12, marginTop: 8 }}>Completa tu perfil primero</p>}
         </div>
       )}
     </div>
