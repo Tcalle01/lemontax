@@ -257,7 +257,8 @@ async function procesarMensaje(token, messageId) {
       nombre.endsWith(".zip") ||
       mime.includes("xml") ||
       mime.includes("zip") ||
-      /^\d{3}-\d{3}-\d{9}/.test(nombre) // número de factura sin extensión
+      mime.includes("x-zip") ||
+      /^\d{3}-\d{3}-\d{9}/.test(nombre)
     );
   });
 
@@ -269,9 +270,12 @@ async function procesarMensaje(token, messageId) {
     const nombre = parte.filename?.toLowerCase() || "";
     const mime = parte.mimeType?.toLowerCase() || "";
 
+    // Caso 1: XML directo (incluyendo .XML en mayúsculas)
     if (nombre.endsWith(".xml") || mime.includes("xml") || /^\d{3}-\d{3}-\d{9}/.test(nombre)) {
       try {
         const xml = await getAdjuntoTexto(token, messageId, parte.body.attachmentId);
+        // DEBUG: mostrar primeros 300 chars del XML para diagnosticar
+        console.log(`[LemonTax] XML raw (${parte.filename}):`, xml.substring(0, 300));
         const factura = parsearXML(xml);
         console.log(`[LemonTax] XML parseado:`, factura ? `✓ ${factura.emisor} $${factura.monto}` : "✗ no válido");
         if (factura) facturas.push(factura);
