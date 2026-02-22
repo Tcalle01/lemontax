@@ -1,12 +1,14 @@
-// gmailImport.js — Importación de facturas electrónicas SRI desde Gmail
+// gmailImport.js — Importación completa de facturas SRI desde Gmail
+import JSZip from "jszip";
 
 const CLIENT_ID = "368032133424-mbo5r3sh4mdrrl8npkf3gbuk5n4edb2h.apps.googleusercontent.com";
 const SCOPES = "https://www.googleapis.com/auth/gmail.readonly";
+const AÑO = "2025";
 
 // ─── Cargar Google Identity Services ─────────────────────────────────────────
 function loadGoogleScript() {
   return new Promise((resolve) => {
-    if (window.google) return resolve();
+    if (window.google?.accounts) return resolve();
     const script = document.createElement("script");
     script.src = "https://accounts.google.com/gsi/client";
     script.onload = resolve;
@@ -30,19 +32,43 @@ export async function getGmailToken() {
   });
 }
 
-// ─── Buscar correos con facturas SRI ─────────────────────────────────────────
-async function buscarMensajes(token) {
-  // Busca correos con XML adjunto que sean facturas electrónicas del SRI
-  const query = encodeURIComponent(
-    'has:attachment filename:xml (factura OR "comprobante electrónico" OR "RIDE" OR sri.gob.ec)'
-  );
-  const res = await fetch(
-    `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${query}&maxResults=50`,
-    { headers: { Authorization: `Bearer ${token}` } }
-  );
-  if (!res.ok) throw new Error("Error al conectar con Gmail");
-  const data = await res.json();
-  return data.messages || [];
+// ─── Queries de búsqueda — múltiples estrategias ──────────────────────────────
+// Las facturas SRI llegan de distintas formas según el emisor
+const SEARCH_QUERIES = [
+  // XML directo adjunto
+  `has:attachment filename:xml after:${AÑO}/01/01 before:${AÑO}/12/31`,
+  // ZIP con XML adentro
+  `has:attachment filename:zip after:${AÑO}/01/01 before:${AÑO}/12/31`,
+  // Correos típicos de sistemas de facturación
+  `has:attachment (factura electronica OR comprobante electronico OR sri.gob.ec) after:${AÑO}/01/01`,
+  // Sistemas populares de facturación en Ecuador
+  `has:attachment (datil OR alegra OR facturero OR nubox OR siigo) after:${AÑO}/01/01`,
+  // Por asunto típico
+  `subject:(factura OR comprobante OR RIDE OR electronico) has:attachment after:${AÑO}/01/01`,
+];
+
+// ─── Buscar todos los mensajes de un query con paginación ─────────────────────
+async function buscarTodos(token, query) {
+  const mensajes = [];
+  let pageToken = null;
+
+  do {
+    const url = new URL("https://gmail.googleapis.com/gmail/v1/users/me/messages");
+    url.searchParams.set("q", query);
+    url.searchParams.set("maxResults", "500");
+    if (pageToken) url.searchParams.set("pageToken", pageToken);
+
+    const res = await fetch(url.toString(), {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) break;
+
+    const data = await res.json();
+    if (data.messages) mensajes.push(...data.messages);
+    pageToken = data.nextPageToken || null;
+  } while (pageToken);
+
+  return mensajes;
 }
 
 // ─── Obtener detalle de un mensaje ───────────────────────────────────────────
@@ -51,19 +77,46 @@ async function getMensaje(token, id) {
     `https://gmail.googleapis.com/gmail/v1/users/me/messages/${id}?format=full`,
     { headers: { Authorization: `Bearer ${token}` } }
   );
+  if (!res.ok) return null;
   return res.json();
 }
 
-// ─── Descargar adjunto ───────────────────────────────────────────────────────
-async function getAdjunto(token, messageId, attachmentId) {
+// ─── Descargar adjunto como bytes ─────────────────────────────────────────────
+async function getAdjuntoBytes(token, messageId, attachmentId) {
   const res = await fetch(
     `https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}/attachments/${attachmentId}`,
     { headers: { Authorization: `Bearer ${token}` } }
   );
   const data = await res.json();
-  // Gmail devuelve base64url, lo convertimos a texto
   const base64 = data.data.replace(/-/g, "+").replace(/_/g, "/");
-  return atob(base64);
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+// ─── Descargar adjunto como texto ────────────────────────────────────────────
+async function getAdjuntoTexto(token, messageId, attachmentId) {
+  const bytes = await getAdjuntoBytes(token, messageId, attachmentId);
+  return new TextDecoder("utf-8").decode(bytes);
+}
+
+// ─── Extraer XMLs de un ZIP ───────────────────────────────────────────────────
+async function extraerXMLsDeZip(bytes) {
+  const xmlTextos = [];
+  try {
+    const zip = await JSZip.loadAsync(bytes);
+    const archivos = Object.values(zip.files).filter(
+      f => !f.dir && f.name.toLowerCase().endsWith(".xml")
+    );
+    for (const archivo of archivos) {
+      const texto = await archivo.async("text");
+      xmlTextos.push(texto);
+    }
+  } catch (e) {
+    // No era un ZIP válido, ignorar
+  }
+  return xmlTextos;
 }
 
 // ─── Parsear XML de factura SRI ───────────────────────────────────────────────
@@ -72,35 +125,40 @@ function parsearXML(xmlString) {
     const parser = new DOMParser();
     const doc = parser.parseFromString(xmlString, "text/xml");
 
-    // Extraer datos del comprobante electrónico SRI
+    // Verificar que sea un comprobante SRI válido
+    // 01 = Factura, 03 = Liquidación, 04 = Nota de crédito, 05 = Nota de débito
+    const tipoComprobante = doc.querySelector("codDoc")?.textContent?.trim();
+    if (tipoComprobante && !["01", "03", "04", "05"].includes(tipoComprobante)) return null;
+
     const get = (tag) => doc.querySelector(tag)?.textContent?.trim() || "";
 
     const ruc = get("rucEmisor") || get("ruc");
-    const razonSocial = get("razonSocialEmisor") || get("razonSocial");
+    const razonSocial = get("razonSocialEmisor") || get("razonSocial") || get("denominacion");
     const fechaEmision = get("fechaEmision");
-    const totalSinImpuestos = parseFloat(get("totalSinImpuestos") || get("subtotal") || "0");
-    const importeTotal = parseFloat(get("importeTotal") || get("total") || totalSinImpuestos.toString());
+    const importeTotal = parseFloat(
+      get("importeTotal") || get("valorTotal") || get("total") || "0"
+    );
+    const claveAcceso = get("claveAcceso") || get("numeroAutorizacion");
 
     if (!ruc || importeTotal <= 0) return null;
 
-    // Categorización automática por razón social
-    const categoria = categorizarEmisor(razonSocial);
-
-    // Formatear fecha
+    // Formatear fecha DD/MM/YYYY → YYYY-MM-DD
     let fechaFormateada = fechaEmision;
-    if (fechaEmision && fechaEmision.includes("/")) {
+    if (fechaEmision?.includes("/")) {
       const [d, m, y] = fechaEmision.split("/");
-      const meses = ["", "Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
-      fechaFormateada = `${d} ${meses[parseInt(m)]} ${y}`;
+      fechaFormateada = `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
     }
 
+    // Solo facturas de 2025
+    if (!fechaFormateada?.startsWith(AÑO)) return null;
+
     return {
-      id: `gmail-${ruc}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      id: claveAcceso || `gmail-${ruc}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       emisor: razonSocial || "Desconocido",
       ruc,
-      fecha: fechaFormateada || fechaEmision,
+      fecha: fechaFormateada,
       monto: importeTotal,
-      categoria,
+      categoria: categorizarEmisor(razonSocial),
       sri: true,
       comprobantes: 1,
       fuente: "gmail",
@@ -112,88 +170,149 @@ function parsearXML(xmlString) {
 
 // ─── Categorización automática ────────────────────────────────────────────────
 function categorizarEmisor(nombre = "") {
-  const n = nombre.toUpperCase();
+  const n = nombre.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
-  if (/FARMA|CLINICA|CLINIC|HOSPITAL|MEDIC|SALUD|DOCTOR|ODONTO|OPTICA|LABORAT/.test(n))
+  if (/FARMA|CLINICA|CLINIC|HOSPITAL|MEDIC|SALUD|DOCTOR|ODONTO|OPTICA|LABORAT|BIOMEDIC|DERMATO|PSICO/.test(n))
     return "Salud";
-  if (/SUPERMAXI|TIA|CORAL|AKÍ|AKI|MEGAMAXI|SANTA MARIA|GRAN AKI|HIPERMARKET|DESPENSA|SUPERMARKET|MARKET/.test(n))
+  if (/SUPERMAXI|MEGAMAXI|TIA\b|CORAL|AKI|SANTA MARIA|GRAN AKI|HIPERMARKET|DESPENSA|SUPERMARKET|MARKET|SUPERMERCADO/.test(n))
     return "Alimentación";
-  if (/RESTAURAN|PIZZA|BURGER|KFC|MCDON|SUBWAY|SUSHI|CAFÉ|CAFE|COMIDA|FRITAD|CEVICH/.test(n))
+  if (/RESTAURAN|PIZZA|BURGER|KFC|MCDON|SUBWAY|SUSHI|CAFE|CAFETERIA|COMIDA|FRITAD|CEVICH|POLLOS|ASADERO|HELADERIA/.test(n))
     return "Alimentación";
-  if (/SHELL|PRIMAX|PETROCOMERCIAL|GASOLINA|GASOLINERA|COMBUSTIBL|PETROECUADOR|TERPEL/.test(n))
+  if (/SHELL|PRIMAX|PETROCOMERCIAL|GASOLINA|GASOLINERA|COMBUSTIBL|PETROECUADOR|TERPEL|ESTACION DE SERVICIO/.test(n))
     return "Transporte";
-  if (/UBER|CABIFY|INDRIVER|TAXI|BUS|METRO|TROLE/.test(n))
+  if (/UBER|CABIFY|INDRIVER|TAXI|TRANSPORTE PUBLICO|COOPERATIVA DE TRANSPORTE/.test(n))
     return "Transporte";
-  if (/LIBRERIA|LIBRER|COLEGIO|ESCUELA|UNIVERSIDAD|ACADEM|INSTITUTO|EDUCACION|CURSO|TALLER|CAPACIT/.test(n))
+  if (/LIBRERIA|COLEGIO|ESCUELA|UNIVERSIDAD|ACADEM|INSTITUTO|EDUCACION|CURSO|TALLER|CAPACIT|IDIOMAS|CULTURA|ARTE/.test(n))
     return "Educación";
-  if (/DE PRATI|ETAFASHION|ZARA|H&M|ROPA|VESTIM|CALZADO|TENNIS|BANANA|CREDITO|MODA/.test(n))
+  if (/DE PRATI|ETAFASHION|ZARA|H&M|ROPA|VESTIM|CALZADO|TENNIS|BANANA|CREDITO|MODA|FASHION/.test(n))
     return "Vestimenta";
-  if (/HOTEL|HOSTAL|AIRBNB|VIAJE|AGENCIA|AEROLIN|AIRLINE|AVIANCA|LATAM|COPA|JET/.test(n))
+  if (/HOTEL|HOSTAL|AIRBNB|VIAJE|AGENCIA DE VIAJE|AEROLIN|AIRLINE|AVIANCA|LATAM|COPA AIR|JETBLUE|AMERICAN/.test(n))
     return "Turismo";
-  if (/ARREND|ALQUIL|INMOBIL|URBAN|EDIFICIO/.test(n))
+  if (/ARREND|ALQUIL|INMOBIL|CONDOMINIO|EDIFICIO|CONJUNTO RESIDENCIAL/.test(n))
     return "Vivienda";
-  if (/CLARO|MOVISTAR|CNT|INTERNET|CELULAR|TELECOM|TV CABLE|DIRECTV|NETFLIX/.test(n))
+  if (/CLARO|MOVISTAR|CNT|INTERNET|CELULAR|TELECOM|TV CABLE|DIRECTV|NETFLIX|SPOTIFY|AMAZON|CABLE/.test(n))
     return "Servicios";
 
   return "Otros";
+}
+
+// ─── Procesar un mensaje: extrae todas las facturas de sus adjuntos ───────────
+async function procesarMensaje(token, messageId) {
+  const facturas = [];
+  const mensaje = await getMensaje(token, messageId);
+  if (!mensaje) return facturas;
+
+  const partes = obtenerPartes(mensaje.payload);
+
+  for (const parte of partes) {
+    if (!parte.body?.attachmentId) continue;
+    const nombre = parte.filename?.toLowerCase() || "";
+
+    // Caso 1: XML directo
+    if (nombre.endsWith(".xml") || parte.mimeType?.includes("xml")) {
+      try {
+        const xml = await getAdjuntoTexto(token, messageId, parte.body.attachmentId);
+        const factura = parsearXML(xml);
+        if (factura) facturas.push(factura);
+      } catch (e) { /* ignorar */ }
+    }
+
+    // Caso 2: ZIP con XMLs adentro
+    if (nombre.endsWith(".zip") || parte.mimeType?.includes("zip")) {
+      try {
+        const bytes = await getAdjuntoBytes(token, messageId, parte.body.attachmentId);
+        const xmls = await extraerXMLsDeZip(bytes);
+        for (const xml of xmls) {
+          const factura = parsearXML(xml);
+          if (factura) facturas.push(factura);
+        }
+      } catch (e) { /* ignorar */ }
+    }
+  }
+
+  return facturas;
 }
 
 // ─── Función principal de importación ────────────────────────────────────────
 export async function importarDesdeGmail(onProgress) {
   const token = await getGmailToken();
 
-  onProgress({ step: "buscando", mensaje: "Buscando correos con facturas SRI..." });
+  onProgress({ step: "buscando", mensaje: "Buscando correos con facturas SRI...", actual: 0, total: 0 });
 
-  const mensajes = await buscarMensajes(token);
-
-  if (mensajes.length === 0) {
-    return { facturas: [], total: 0, mensaje: "No se encontraron facturas electrónicas en tu Gmail" };
-  }
-
-  onProgress({ step: "procesando", mensaje: `Encontrados ${mensajes.length} correos. Procesando...`, total: mensajes.length });
-
-  const facturasImportadas = [];
-  const errores = [];
-
-  for (let i = 0; i < mensajes.length; i++) {
-    try {
-      onProgress({ step: "procesando", mensaje: `Procesando ${i + 1} de ${mensajes.length}...`, actual: i + 1, total: mensajes.length });
-
-      const mensaje = await getMensaje(token, mensajes[i].id);
-      const partes = obtenerPartes(mensaje.payload);
-
-      for (const parte of partes) {
-        if (!parte.filename?.endsWith(".xml") && !parte.mimeType?.includes("xml")) continue;
-        if (!parte.body?.attachmentId) continue;
-
-        const xml = await getAdjunto(token, mensajes[i].id, parte.body.attachmentId);
-        const factura = parsearXML(xml);
-        if (factura) facturasImportadas.push(factura);
-      }
-    } catch (e) {
-      errores.push(mensajes[i].id);
-    }
-  }
-
-  // Deduplicar por RUC + monto + fecha
-  const unicas = facturasImportadas.filter((f, i, arr) =>
-    arr.findIndex(x => x.ruc === f.ruc && x.monto === f.monto && x.fecha === f.fecha) === i
+  // Ejecutar las 5 búsquedas en paralelo y deduplicar por ID de mensaje
+  const resultados = await Promise.all(
+    SEARCH_QUERIES.map(q => buscarTodos(token, q).catch(() => []))
   );
 
-  onProgress({ step: "listo", mensaje: `${unicas.length} facturas importadas`, actual: unicas.length, total: unicas.length });
+  const mapaIds = new Map();
+  resultados.flat().forEach(m => mapaIds.set(m.id, m));
+  const mensajesUnicos = Array.from(mapaIds.values());
+
+  if (mensajesUnicos.length === 0) {
+    return {
+      facturas: [],
+      total: 0,
+      mensaje: "No se encontraron correos con facturas en 2025. Verifica que los correos lleguen a este Gmail.",
+    };
+  }
+
+  onProgress({
+    step: "procesando",
+    mensaje: `${mensajesUnicos.length} correos encontrados. Extrayendo XMLs...`,
+    actual: 0,
+    total: mensajesUnicos.length,
+  });
+
+  const facturasRaw = [];
+  const BATCH = 5; // 5 en paralelo para no saturar la API de Gmail
+
+  for (let i = 0; i < mensajesUnicos.length; i += BATCH) {
+    const lote = mensajesUnicos.slice(i, i + BATCH);
+    const resultadosLote = await Promise.all(
+      lote.map(m => procesarMensaje(token, m.id).catch(() => []))
+    );
+    resultadosLote.flat().forEach(f => facturasRaw.push(f));
+
+    onProgress({
+      step: "procesando",
+      mensaje: `Extrayendo facturas... ${Math.min(i + BATCH, mensajesUnicos.length)} de ${mensajesUnicos.length} correos`,
+      actual: Math.min(i + BATCH, mensajesUnicos.length),
+      total: mensajesUnicos.length,
+    });
+  }
+
+  // Deduplicar facturas: usar claveAcceso si existe, si no por ruc+monto+fecha
+  const vistas = new Set();
+  const facturasUnicas = facturasRaw.filter(f => {
+    const key = f.id.startsWith("gmail-")
+      ? `${f.ruc}-${f.monto}-${f.fecha}`
+      : f.id;
+    if (vistas.has(key)) return false;
+    vistas.add(key);
+    return true;
+  });
+
+  // Ordenar por fecha descendente
+  facturasUnicas.sort((a, b) => b.fecha.localeCompare(a.fecha));
+
+  onProgress({
+    step: "listo",
+    mensaje: `¡Listo! ${facturasUnicas.length} facturas importadas`,
+    actual: facturasUnicas.length,
+    total: facturasUnicas.length,
+  });
 
   return {
-    facturas: unicas,
-    total: unicas.length,
-    errores: errores.length,
-    mensaje: `Se importaron ${unicas.length} facturas nuevas`,
+    facturas: facturasUnicas,
+    total: facturasUnicas.length,
+    mensaje: `${facturasUnicas.length} facturas encontradas en ${mensajesUnicos.length} correos revisados`,
   };
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Helper: recorre recursivamente todas las partes del mensaje ──────────────
 function obtenerPartes(payload, resultado = []) {
   if (!payload) return resultado;
-  if (payload.filename && payload.body) resultado.push(payload);
+  if (payload.filename && payload.body?.attachmentId) resultado.push(payload);
   if (payload.parts) payload.parts.forEach(p => obtenerPartes(p, resultado));
   return resultado;
 }
