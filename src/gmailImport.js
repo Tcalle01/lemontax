@@ -32,19 +32,12 @@ export async function getGmailToken() {
   });
 }
 
-// ─── Queries de búsqueda — múltiples estrategias ──────────────────────────────
-// Las facturas SRI llegan de distintas formas según el emisor
+// ─── Queries de búsqueda — simple y efectivo ─────────────────────────────────
 const SEARCH_QUERIES = [
-  // XML directo adjunto
+  // Todo correo con XML adjunto en 2025
   `has:attachment filename:xml after:${AÑO}/01/01 before:${AÑO}/12/31`,
-  // ZIP con XML adentro
+  // Todo correo con ZIP adjunto en 2025 (muchos emisores mandan XML dentro de ZIP)
   `has:attachment filename:zip after:${AÑO}/01/01 before:${AÑO}/12/31`,
-  // Correos típicos de sistemas de facturación
-  `has:attachment (factura electronica OR comprobante electronico OR sri.gob.ec) after:${AÑO}/01/01`,
-  // Sistemas populares de facturación en Ecuador
-  `has:attachment (datil OR alegra OR facturero OR nubox OR siigo) after:${AÑO}/01/01`,
-  // Por asunto típico
-  `subject:(factura OR comprobante OR RIDE OR electronico) has:attachment after:${AÑO}/01/01`,
 ];
 
 // ─── Buscar todos los mensajes de un query con paginación ─────────────────────
