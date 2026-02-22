@@ -152,13 +152,21 @@ function parsearXML(xmlString) {
     // Solo facturas de 2025
     if (!fechaFormateada?.startsWith(AÑO)) return null;
 
+    // Extraer descripción de los artículos/servicios del detalle
+    const descripciones = Array.from(doc.querySelectorAll("detalle descripcion, detalle descripcionAdicional, detAdicional"))
+      .map(el => el.textContent?.trim() || "")
+      .filter(Boolean)
+      .join(" ");
+
+    const categoria = categorizar(razonSocial, descripciones);
+
     return {
       id: claveAcceso || `gmail-${ruc}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       emisor: razonSocial || "Desconocido",
       ruc,
       fecha: fechaFormateada,
       monto: importeTotal,
-      categoria: categorizarEmisor(razonSocial),
+      categoria,
       sri: true,
       comprobantes: 1,
       fuente: "gmail",
@@ -168,9 +176,48 @@ function parsearXML(xmlString) {
   }
 }
 
-// ─── Categorización automática ────────────────────────────────────────────────
+// ─── Categorización: emisor + artículos ──────────────────────────────────────
+function normalizar(texto = "") {
+  return texto.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+function categorizar(emisor = "", articulos = "") {
+  // Primero intentar con el nombre del emisor (más confiable)
+  const catEmisor = categorizarEmisor(emisor);
+  if (catEmisor !== "Otros") return catEmisor;
+
+  // Si no se pudo determinar por emisor, usar los artículos
+  return categorizarArticulos(articulos) || "Otros";
+}
+
+function categorizarArticulos(texto = "") {
+  const t = normalizar(texto);
+
+  if (/MEDICINA|MEDICAMENTO|FARMACO|CONSULTA MEDICA|CONSULTA|CIRUGIA|EXAMEN|LABORATORIO|RAYOS X|ECOGRAFIA|VACUNA|TERAPIA|LENTES|GAFAS|AUDIFONOS/.test(t))
+    return "Salud";
+  if (/ARROZ|ACEITE|LECHE|PAN|CARNE|POLLO|PESCADO|FRUTA|VERDURA|VEGETAL|HUEVO|AZUCAR|SAL|HARINA|PASTA|FIDEO|ATUN|SARDINA|QUESO|YOGURT|MANTEQUILLA|CEREAL|GRANOLA|CAFE|TE\b|JUGO|REFRESCO|AGUA|COMIDA|ALIMENTO|VÍVERES|VIVERES/.test(t))
+    return "Alimentación";
+  if (/ALMUERZO|DESAYUNO|MERIENDA|MENU|PLATO|HAMBURGUES|PIZZA|SUSHI|TACOS|SANDWICH|ENSALADA|HELADO|POSTRE|BEBIDA/.test(t))
+    return "Alimentación";
+  if (/COLEGIATURA|PENSION EDUCATIVA|PENSION ESCOLAR|MATRICULA|CURSO|TALLER|SEMINARIO|CAPACITACION|LIBRO|TEXTO|CUADERNO|UTILES|MATERIAL EDUCATIVO|CLASE|LECCION|TUTORIA/.test(t))
+    return "Educación";
+  if (/CAMISA|PANTALON|ZAPATO|ZAPATILLA|VESTIDO|FALDA|CHOMPA|CHAQUETA|ABRIGO|ROPA|CALCETIN|INTERIORES|CORBATA|CINTURON|CARTERA|BOLSO|MOCHILA/.test(t))
+    return "Vestimenta";
+  if (/ARRIENDO|ALQUILER|RENTA|HIPOTECA|MANTENIMIENTO EDIFICIO|ADMINISTRACION EDIFICIO|CUOTA CONDOMINIO/.test(t))
+    return "Vivienda";
+  if (/PASAJE|TIQUETE|TICKET AEREO|HOTEL|HOSPEDAJE|TOUR|EXCURSION|PAQUETE TURISTICO|CRUCERO/.test(t))
+    return "Turismo";
+  if (/GASOLINA|DIESEL|GAS|COMBUSTIBLE|PEAJE|LAVADO AUTO|PARQUEADERO|PARKING|ESTACIONAMIENTO/.test(t))
+    return "Transporte";
+  if (/PLAN CELULAR|PLAN MOVIL|INTERNET|TELEFONIA|STREAMING|SUSCRIPCION|PLATAFORMA|SERVICIO DIGITAL/.test(t))
+    return "Servicios";
+
+  return null;
+}
+
+// ─── Categorización solo por nombre del emisor ───────────────────────────────
 function categorizarEmisor(nombre = "") {
-  const n = nombre.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const n = normalizar(nombre);
 
   if (/FARMA|CLINICA|CLINIC|HOSPITAL|MEDIC|SALUD|DOCTOR|ODONTO|OPTICA|LABORAT|BIOMEDIC|DERMATO|PSICO/.test(n))
     return "Salud";
