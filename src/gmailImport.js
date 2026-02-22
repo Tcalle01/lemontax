@@ -113,10 +113,19 @@ async function extraerXMLsDeZip(bytes) {
 function parsearXML(xmlString) {
   try {
     const parser = new DOMParser();
-    const doc = parser.parseFromString(xmlString, "text/xml");
+    let doc = parser.parseFromString(xmlString, "text/xml");
 
-    // Verificar que sea un comprobante SRI válido
-    // 01 = Factura, 03 = Liquidación, 04 = Nota de crédito, 05 = Nota de débito
+    // El SRI envuelve el comprobante en <autorizacion><comprobante><![CDATA[...]]></comprobante></autorizacion>
+    // Hay que extraer el XML interno del CDATA y parsearlo por separado
+    const nodoComprobante = doc.querySelector("autorizacion comprobante");
+    if (nodoComprobante) {
+      const xmlInterno = nodoComprobante.textContent?.trim();
+      if (xmlInterno) {
+        doc = parser.parseFromString(xmlInterno, "text/xml");
+      }
+    }
+
+    // Verificar que sea comprobante SRI válido
     const tipoComprobante = doc.querySelector("codDoc")?.textContent?.trim();
     if (tipoComprobante && !["01", "03", "04", "05"].includes(tipoComprobante)) return null;
 
@@ -142,13 +151,10 @@ function parsearXML(xmlString) {
     // Solo facturas de 2025
     if (!fechaFormateada?.startsWith(AÑO)) return null;
 
-    // Extraer descripción de los artículos/servicios del detalle
-    const descripciones = Array.from(doc.querySelectorAll("detalle descripcion, detalle descripcionAdicional, detAdicional"))
-      .map(el => el.textContent?.trim() || "")
-      .filter(Boolean)
-      .join(" ");
-
-    const categoria = categorizar(razonSocial, descripciones);
+    // Extraer descripciones de artículos para categorización
+    const descripciones = Array.from(
+      doc.querySelectorAll("detalle descripcion, detalle descripcionAdicional, detAdicional")
+    ).map(el => el.textContent?.trim() || "").filter(Boolean).join(" ");
 
     return {
       id: claveAcceso || `gmail-${ruc}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -156,7 +162,7 @@ function parsearXML(xmlString) {
       ruc,
       fecha: fechaFormateada,
       monto: importeTotal,
-      categoria,
+      categoria: categorizar(razonSocial, descripciones),
       sri: true,
       comprobantes: 1,
       fuente: "gmail",
