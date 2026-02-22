@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { supabase } from "./supabase";
 
 const COLORS = {
   green: "#1A3A2A",
@@ -142,8 +143,84 @@ export default function LemonTax() {
   const [screen, setScreen] = useState("dashboard");
   const [facturas, setFacturas] = useState(initialFacturas);
   const [perfil, setPerfil] = useState({ cedula: "", nombre: "", salario: "", cargas: "0", enfermedadCatastrofica: false });
+  const [appLoading, setAppLoading] = useState(true);
+  const [syncStatus, setSyncStatus] = useState("idle");
 
-  const updateCategoria = (id, cat) => setFacturas(prev => prev.map(f => f.id === id ? { ...f, categoria: cat } : f));
+  // Load data from Supabase on mount
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [{ data: facturasData }, { data: perfilData }] = await Promise.all([
+          supabase.from("facturas").select("*").order("created_at", { ascending: false }),
+          supabase.from("perfil").select("*").limit(1).maybeSingle(),
+        ]);
+        if (facturasData && facturasData.length > 0) {
+          setFacturas(facturasData.map(f => ({
+            id: f.id, emisor: f.emisor, ruc: f.ruc || "", fecha: f.fecha,
+            monto: f.monto, categoria: f.categoria, sri: f.es_deducible_sri,
+            comprobantes: f.comprobantes || 1,
+          })));
+        }
+        if (perfilData) {
+          setPerfil({
+            cedula: perfilData.cedula || "",
+            nombre: perfilData.nombre || "",
+            salario: perfilData.salario_mensual?.toString() || "",
+            otrosIngresos: perfilData.otros_ingresos?.toString() || "",
+            cargas: perfilData.cargas_familiares?.toString() || "0",
+            enfermedadCatastrofica: perfilData.enfermedad_catastrofica || false,
+            _id: perfilData.id,
+          });
+        }
+      } catch (e) {
+        console.log("Usando datos locales");
+      }
+      setAppLoading(false);
+    }
+    loadData();
+  }, []);
+
+  // Manual save perfil
+  const savePerfil = useCallback(async (perfilToSave) => {
+    if (!navigator.onLine) {
+      setSyncStatus("error");
+      return;
+    }
+    setSyncStatus("saving");
+    try {
+      const payload = {
+        cedula: perfilToSave.cedula,
+        nombre: perfilToSave.nombre,
+        salario_mensual: parseFloat(perfilToSave.salario) || 0,
+        otros_ingresos: parseFloat(perfilToSave.otrosIngresos) || 0,
+        cargas_familiares: parseInt(perfilToSave.cargas) || 0,
+        enfermedad_catastrofica: perfilToSave.enfermedadCatastrofica || false,
+      };
+      if (perfilToSave._id) {
+        await supabase.from("perfil").update(payload).eq("id", perfilToSave._id);
+      } else {
+        const { data } = await supabase.from("perfil").insert(payload).select().single();
+        if (data) setPerfil(p => ({ ...p, _id: data.id }));
+      }
+      setSyncStatus("saved");
+      setTimeout(() => setSyncStatus("idle"), 2000);
+    } catch (e) {
+      setSyncStatus("error");
+    }
+  }, []);
+
+  const updateCategoria = async (id, cat) => {
+    if (!navigator.onLine) { setSyncStatus("error"); return; }
+    setFacturas(prev => prev.map(f => f.id === id ? { ...f, categoria: cat } : f));
+    setSyncStatus("saving");
+    try {
+      await supabase.from("facturas").update({ categoria: cat }).eq("id", id);
+      setSyncStatus("saved");
+      setTimeout(() => setSyncStatus("idle"), 2000);
+    } catch (e) { setSyncStatus("error"); }
+  };
+
+  // updatePerfil only updates local state, saving happens via button
   const updatePerfil = (k, v) => setPerfil(prev => ({ ...prev, [k]: v }));
 
   const totalGastos = facturas.reduce((a, b) => a + b.monto, 0);
@@ -152,6 +229,14 @@ export default function LemonTax() {
   const cargas = parseInt(perfil.cargas) || 0;
   const rebaja = salarioAnual > 0 ? calcRebaja(totalDeducible, salarioAnual, cargas) : totalDeducible * 0.10;
   const limite = salarioAnual > 0 ? calcLimiteGP(salarioAnual, cargas) : 0;
+
+  if (appLoading) return (
+    <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "100vh", background: "#0F1F15", flexDirection: "column", gap: 12 }}>
+      <p style={{ fontSize: 48 }}>🍋</p>
+      <p style={{ color: "#F5E642", fontSize: 20, fontWeight: 800, fontFamily: "sans-serif" }}>Lemon Tax</p>
+      <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 12 }}>Cargando...</p>
+    </div>
+  );
 
   return (
     <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "100vh", background: "#0F1F15", fontFamily: "'DM Sans', sans-serif", padding: "20px" }}>
@@ -171,14 +256,19 @@ export default function LemonTax() {
       <div style={{ width: 390, height: 844, background: COLORS.white, borderRadius: 44, overflow: "hidden", display: "flex", flexDirection: "column", boxShadow: "0 40px 100px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.1)" }}>
         <div style={{ background: COLORS.green, padding: "14px 28px 0", display: "flex", justifyContent: "space-between", alignItems: "center", color: COLORS.white, fontSize: 12, fontWeight: 600 }}>
           <span>9:41</span>
-          <div style={{ display: "flex", gap: 6 }}><span>WiFi</span><span>🔋</span></div>
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            {syncStatus === "saving" && <span style={{ fontSize: 10, color: COLORS.yellow }} className="pulse">⟳ Guardando</span>}
+            {syncStatus === "saved" && <span style={{ fontSize: 10, color: COLORS.greenAccent }}>✓ Guardado</span>}
+            {syncStatus === "error" && <span style={{ fontSize: 10, color: "#E05252" }}>✗ Sin conexión</span>}
+            <span>WiFi</span><span>🔋</span>
+          </div>
         </div>
 
         <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
           {screen === "dashboard" && <DashboardScreen navigate={setScreen} facturas={facturas} total={totalGastos} deducible={totalDeducible} rebaja={rebaja} perfilOk={!!perfil.salario} />}
           {screen === "facturas" && <FacturasScreen facturas={facturas} updateCategoria={updateCategoria} />}
-          {screen === "conectar" && <ConectarScreen />}
-          {screen === "declaracion" && <DeclaracionScreen facturas={facturas} perfil={perfil} updatePerfil={updatePerfil} rebaja={rebaja} limite={limite} salarioAnual={salarioAnual} cargas={cargas} />}
+          {screen === "conectar" && <ConectarScreen facturas={facturas} setFacturas={setFacturas} setSyncStatus={setSyncStatus} />}
+          {screen === "declaracion" && <DeclaracionScreen facturas={facturas} perfil={perfil} updatePerfil={updatePerfil} savePerfil={savePerfil} syncStatus={syncStatus} rebaja={rebaja} limite={limite} salarioAnual={salarioAnual} cargas={cargas} />}
         </div>
 
         <div style={{ background: COLORS.white, borderTop: `1px solid ${COLORS.grayLight}`, padding: "12px 8px 24px", display: "flex", justifyContent: "space-around" }}>
@@ -409,7 +499,7 @@ function ConectarScreen() {
 }
 
 // ── Declaración ───────────────────────────────────────────────────────────────
-function DeclaracionScreen({ facturas, perfil, updatePerfil, rebaja, limite, salarioAnual, cargas }) {
+function DeclaracionScreen({ facturas, perfil, updatePerfil, savePerfil, syncStatus, rebaja, limite, salarioAnual, cargas }) {
   const [tab, setTab] = useState("perfil"); // perfil | gp | anexo
   const [generated, setGenerated] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -507,6 +597,31 @@ function DeclaracionScreen({ facturas, perfil, updatePerfil, rebaja, limite, sal
                 </div>
               </div>
             )}
+
+            {/* Offline error */}
+            {syncStatus === "error" && (
+              <div style={{ background: "#FFEBEE", borderRadius: 12, padding: "12px 16px", marginBottom: 12, border: "1px solid #FFCDD2" }}>
+                <p style={{ color: "#C62828", fontSize: 12, fontWeight: 600 }}>⚠️ Sin conexión a internet</p>
+                <p style={{ color: "#E53935", fontSize: 11, marginTop: 2 }}>Conéctate para guardar tus datos</p>
+              </div>
+            )}
+
+            {/* Save button */}
+            <button
+              onClick={() => savePerfil(perfil)}
+              disabled={syncStatus === "saving"}
+              style={{
+                width: "100%", padding: "15px",
+                background: syncStatus === "saving" ? COLORS.grayLight : syncStatus === "saved" ? COLORS.greenAccent : COLORS.green,
+                color: syncStatus === "saving" ? COLORS.gray : COLORS.white,
+                border: "none", borderRadius: 14, fontSize: 15, fontWeight: 700,
+                cursor: syncStatus === "saving" ? "not-allowed" : "pointer",
+                fontFamily: "DM Sans, sans-serif", transition: "all 0.3s",
+                marginBottom: 6,
+              }}
+            >
+              {syncStatus === "saving" ? "Guardando..." : syncStatus === "saved" ? "✓ Guardado" : "💾 Guardar perfil"}
+            </button>
           </div>
         )}
 
