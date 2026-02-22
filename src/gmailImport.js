@@ -32,12 +32,9 @@ export async function getGmailToken() {
   });
 }
 
-// ─── Queries de búsqueda — simple y efectivo ─────────────────────────────────
+// ─── Queries de búsqueda ─────────────────────────────────────────────────────
 const SEARCH_QUERIES = [
-  // Todo correo con XML adjunto en 2025
-  `has:attachment filename:xml after:${AÑO}/01/01 before:${AÑO}/12/31`,
-  // Todo correo con ZIP adjunto en 2025 (muchos emisores mandan XML dentro de ZIP)
-  `has:attachment filename:zip after:${AÑO}/01/01 before:${AÑO}/12/31`,
+  `xml after:${AÑO}/01/01 before:${AÑO}/12/31`,
 ];
 
 // ─── Buscar todos los mensajes de un query con paginación ─────────────────────
@@ -244,12 +241,30 @@ async function procesarMensaje(token, messageId) {
 
   const partes = obtenerPartes(mensaje.payload);
 
-  for (const parte of partes) {
-    if (!parte.body?.attachmentId) continue;
+  // Filtrar solo partes que sean XML o ZIP antes de descargar
+  const partesRelevantes = partes.filter(p => {
+    if (!p.body?.attachmentId) return false;
+    const nombre = p.filename?.toLowerCase() || "";
+    const mime = p.mimeType?.toLowerCase() || "";
+    return (
+      nombre.endsWith(".xml") ||
+      nombre.endsWith(".zip") ||
+      mime.includes("xml") ||
+      mime.includes("zip") ||
+      // Algunos emisores mandan XML con mimetype genérico pero nombre numérico (ej: 001-001-000001234)
+      /^\d{3}-\d{3}-\d{9}/.test(nombre)
+    );
+  });
+
+  // Si no hay adjuntos relevantes, saltar sin hacer más requests
+  if (partesRelevantes.length === 0) return facturas;
+
+  for (const parte of partesRelevantes) {
     const nombre = parte.filename?.toLowerCase() || "";
+    const mime = parte.mimeType?.toLowerCase() || "";
 
     // Caso 1: XML directo
-    if (nombre.endsWith(".xml") || parte.mimeType?.includes("xml")) {
+    if (nombre.endsWith(".xml") || mime.includes("xml") || /^\d{3}-\d{3}-\d{9}/.test(nombre)) {
       try {
         const xml = await getAdjuntoTexto(token, messageId, parte.body.attachmentId);
         const factura = parsearXML(xml);
@@ -258,7 +273,7 @@ async function procesarMensaje(token, messageId) {
     }
 
     // Caso 2: ZIP con XMLs adentro
-    if (nombre.endsWith(".zip") || parte.mimeType?.includes("zip")) {
+    if (nombre.endsWith(".zip") || mime.includes("zip")) {
       try {
         const bytes = await getAdjuntoBytes(token, messageId, parte.body.attachmentId);
         const xmls = await extraerXMLsDeZip(bytes);
