@@ -387,9 +387,39 @@ function FacturasDesktop({ facturas, setFacturas }) {
 }
 
 // ─── Conectar Screen ──────────────────────────────────────────────────────────
-function ConectarDesktop() {
+function ConectarDesktop({ facturas, setFacturas, setSyncStatus }) {
+  const [estado, setEstado] = useState("idle"); // idle | loading | success | error
+  const [progreso, setProgreso] = useState({ mensaje: "", actual: 0, total: 0 });
+  const [resultado, setResultado] = useState(null);
   const [gmailOk, setGmailOk] = useState(false);
-  const [loading, setLoading] = useState(false);
+
+  const handleConectar = async () => {
+    setEstado("loading");
+    setResultado(null);
+    try {
+      const { importarDesdeGmail } = await import("./gmailImport.js");
+      const res = await importarDesdeGmail((p) => setProgreso(p));
+      setResultado(res);
+      if (res.facturas.length > 0) {
+        setFacturas(prev => {
+          // Evitar duplicados
+          const ids = new Set(prev.map(f => f.ruc + f.monto + f.fecha));
+          const nuevas = res.facturas.filter(f => !ids.has(f.ruc + f.monto + f.fecha));
+          return [...nuevas, ...prev];
+        });
+        setSyncStatus("saved");
+        setTimeout(() => setSyncStatus("idle"), 2000);
+      }
+      setEstado("success");
+      setGmailOk(true);
+    } catch (e) {
+      console.error(e);
+      setEstado("error");
+      setResultado({ mensaje: e.message || "Error al conectar con Gmail" });
+    }
+  };
+
+  const porcentaje = progreso.total > 0 ? Math.round((progreso.actual / progreso.total) * 100) : 0;
 
   return (
     <div style={{ padding: "32px", overflowY: "auto", flex: 1 }}>
@@ -399,6 +429,7 @@ function ConectarDesktop() {
       </div>
 
       <div style={{ maxWidth: 680, display: "flex", flexDirection: "column", gap: 16 }}>
+
         {/* Gmail card */}
         <div style={{ background: C.card, border: `1px solid ${gmailOk ? C.greenAccent : C.border}`, borderRadius: 16, padding: "24px" }}>
           <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
@@ -406,26 +437,79 @@ function ConectarDesktop() {
             <div style={{ flex: 1 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                 <p style={{ color: C.text, fontSize: 16, fontWeight: 700 }}>Gmail</p>
-                {gmailOk && <Badge color={C.greenAccent}>Conectado ●</Badge>}
+                {gmailOk && <Badge color={C.greenAccent}>✓ Conectado</Badge>}
               </div>
               <p style={{ color: C.textMid, fontSize: 13, lineHeight: 1.6, marginBottom: 16 }}>
-                Lemon Tax escanea tu bandeja en busca de correos con archivos XML del SRI. Detecta facturas electrónicas automáticamente y las categoriza por tipo de gasto.
+                Lemon Tax escanea tu bandeja buscando correos con archivos XML del SRI. Detecta y parsea facturas electrónicas automáticamente, categorizándolas por tipo de gasto.
               </p>
-              {gmailOk ? (
-                <div style={{ background: C.greenAccent + "15", border: `1px solid ${C.greenAccent}30`, borderRadius: 10, padding: "12px 16px", display: "flex", justifyContent: "space-between" }}>
-                  <div>
-                    <p style={{ color: C.greenAccent, fontSize: 13, fontWeight: 600 }}>6 facturas importadas</p>
-                    <p style={{ color: C.textDim, fontSize: 11, marginTop: 2 }}>Última sincronización: hace 5 min</p>
+
+              {/* Progress bar while loading */}
+              {estado === "loading" && (
+                <div style={{ marginBottom: 16 }}>
+                  <p style={{ color: C.textMid, fontSize: 12, marginBottom: 8 }}>{progreso.mensaje || "Conectando..."}</p>
+                  <div style={{ height: 6, background: C.border, borderRadius: 3, overflow: "hidden" }}>
+                    <div style={{ height: "100%", background: C.yellow, borderRadius: 3, width: progreso.total > 0 ? `${porcentaje}%` : "30%", transition: "width 0.4s ease", animation: progreso.total === 0 ? "pulse 1.5s infinite" : "none" }} />
                   </div>
-                  <button onClick={() => setGmailOk(false)} style={{ color: C.textDim, fontSize: 12, background: "none", border: "none", cursor: "pointer" }}>Desconectar</button>
+                  {progreso.total > 0 && <p style={{ color: C.textDim, fontSize: 11, marginTop: 4 }}>{progreso.actual} de {progreso.total} correos procesados</p>}
                 </div>
-              ) : (
-                <button onClick={() => { setLoading(true); setTimeout(() => { setLoading(false); setGmailOk(true); }, 2000); }} style={{ padding: "11px 24px", background: C.yellow, color: C.green, border: "none", borderRadius: 10, fontSize: 13, fontWeight: 800, cursor: "pointer", fontFamily: "DM Sans, sans-serif" }}>
-                  {loading ? "Conectando..." : "Conectar con Google"}
-                </button>
               )}
+
+              {/* Success result */}
+              {estado === "success" && resultado && (
+                <div style={{ background: C.greenAccent + "15", border: `1px solid ${C.greenAccent}30`, borderRadius: 10, padding: "14px 16px", marginBottom: 16 }}>
+                  <p style={{ color: C.greenAccent, fontSize: 13, fontWeight: 700 }}>✓ {resultado.mensaje}</p>
+                  {resultado.errores > 0 && <p style={{ color: C.textDim, fontSize: 11, marginTop: 4 }}>{resultado.errores} correos no pudieron procesarse</p>}
+                  <p style={{ color: C.textDim, fontSize: 11, marginTop: 4 }}>Las facturas aparecen en la pantalla de Facturas con badge "Gmail"</p>
+                </div>
+              )}
+
+              {/* Error */}
+              {estado === "error" && resultado && (
+                <div style={{ background: C.red + "15", border: `1px solid ${C.red}30`, borderRadius: 10, padding: "14px 16px", marginBottom: 16 }}>
+                  <p style={{ color: C.red, fontSize: 13, fontWeight: 700 }}>⚠️ {resultado.mensaje}</p>
+                  <p style={{ color: C.textDim, fontSize: 11, marginTop: 4 }}>Verifica que tu cuenta de Google tenga acceso y vuelve a intentar</p>
+                </div>
+              )}
+
+              <div style={{ display: "flex", gap: 10 }}>
+                <button
+                  onClick={handleConectar}
+                  disabled={estado === "loading"}
+                  style={{ padding: "11px 24px", background: estado === "loading" ? C.border : C.yellow, color: estado === "loading" ? C.textDim : C.green, border: "none", borderRadius: 10, fontSize: 13, fontWeight: 800, cursor: estado === "loading" ? "not-allowed" : "pointer", fontFamily: "DM Sans, sans-serif" }}
+                >
+                  {estado === "loading" ? "Importando..." : gmailOk ? "🔄 Reimportar facturas" : "Conectar con Google"}
+                </button>
+                {gmailOk && (
+                  <button onClick={() => { setGmailOk(false); setEstado("idle"); setResultado(null); }} style={{ padding: "11px 18px", background: "transparent", color: C.textDim, border: `1px solid ${C.border}`, borderRadius: 10, fontSize: 13, cursor: "pointer", fontFamily: "DM Sans, sans-serif" }}>
+                    Desconectar
+                  </button>
+                )}
+              </div>
             </div>
           </div>
+        </div>
+
+        {/* Categorización info */}
+        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: "20px 24px" }}>
+          <p style={{ color: C.text, fontSize: 14, fontWeight: 700, marginBottom: 12 }}>🤖 Categorización automática</p>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            {[
+              ["🛒 Alimentación", "Supermaxi, Tía, Coral, restaurantes"],
+              ["💊 Salud", "Farmacias, clínicas, hospitales"],
+              ["📚 Educación", "Colegios, universidades, librerías"],
+              ["👕 Vestimenta", "De Prati, Etafashion, Zara"],
+              ["🏠 Vivienda", "Arrendamientos, inmobiliarias"],
+              ["✈️ Turismo", "Hoteles, aerolíneas, agencias"],
+              ["⛽ Transporte", "Shell, Primax, Uber, taxis"],
+              ["📱 Servicios", "Claro, Movistar, Netflix, CNT"],
+            ].map(([cat, ejemplos]) => (
+              <div key={cat} style={{ padding: "10px 12px", background: C.surface, borderRadius: 8, border: `1px solid ${C.border}` }}>
+                <p style={{ color: C.text, fontSize: 12, fontWeight: 600 }}>{cat}</p>
+                <p style={{ color: C.textDim, fontSize: 11, marginTop: 2 }}>{ejemplos}</p>
+              </div>
+            ))}
+          </div>
+          <p style={{ color: C.textDim, fontSize: 11, marginTop: 12 }}>Puedes editar la categoría de cualquier factura en la pantalla de Facturas</p>
         </div>
 
         {/* Outlook coming soon */}
@@ -442,13 +526,13 @@ function ConectarDesktop() {
           </div>
         </div>
 
-        {/* Manual upload */}
+        {/* Manual XML */}
         <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: "24px" }}>
           <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
             <div style={{ width: 52, height: 52, borderRadius: 14, background: C.yellowDim, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26 }}>📄</div>
             <div style={{ flex: 1 }}>
               <p style={{ color: C.text, fontSize: 16, fontWeight: 700, marginBottom: 6 }}>Subir XML del SRI</p>
-              <p style={{ color: C.textMid, fontSize: 13, lineHeight: 1.6, marginBottom: 16 }}>Importa tus facturas manualmente subiendo los archivos XML descargados del portal del SRI.</p>
+              <p style={{ color: C.textMid, fontSize: 13, lineHeight: 1.6, marginBottom: 16 }}>Importa manualmente los archivos XML descargados del portal del SRI.</p>
               <button style={{ padding: "11px 24px", background: "transparent", color: C.yellow, border: `2px solid ${C.yellow}40`, borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "DM Sans, sans-serif" }}>
                 Seleccionar archivos XML
               </button>
@@ -781,7 +865,7 @@ export default function LemonTaxDesktop() {
         <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
           {screen === "dashboard" && <DashboardDesktop facturas={facturas} perfil={perfil} navigate={setScreen} />}
           {screen === "facturas" && <FacturasDesktop facturas={facturas} setFacturas={setFacturas} />}
-          {screen === "conectar" && <ConectarDesktop />}
+          {screen === "conectar" && <ConectarDesktop facturas={facturas} setFacturas={setFacturas} setSyncStatus={setSyncStatus} />}
           {screen === "declaracion" && <DeclaracionDesktop facturas={facturas} perfil={perfil} updatePerfil={updatePerfil} savePerfil={savePerfil} syncStatus={syncStatus} />}
         </div>
       </div>
