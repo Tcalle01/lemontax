@@ -241,7 +241,13 @@ async function procesarMensaje(token, messageId) {
 
   const partes = obtenerPartes(mensaje.payload);
 
-  // Filtrar solo partes que sean XML o ZIP antes de descargar
+  // DEBUG: mostrar todos los adjuntos encontrados
+  partes.forEach(p => {
+    if (p.body?.attachmentId) {
+      console.log(`[LemonTax] Adjunto: filename="${p.filename}" mimeType="${p.mimeType}" size=${p.body?.size}`);
+    }
+  });
+
   const partesRelevantes = partes.filter(p => {
     if (!p.body?.attachmentId) return false;
     const nombre = p.filename?.toLowerCase() || "";
@@ -251,37 +257,37 @@ async function procesarMensaje(token, messageId) {
       nombre.endsWith(".zip") ||
       mime.includes("xml") ||
       mime.includes("zip") ||
-      // Algunos emisores mandan XML con mimetype genérico pero nombre numérico (ej: 001-001-000001234)
-      /^\d{3}-\d{3}-\d{9}/.test(nombre)
+      /^\d{3}-\d{3}-\d{9}/.test(nombre) // número de factura sin extensión
     );
   });
 
-  // Si no hay adjuntos relevantes, saltar sin hacer más requests
+  console.log(`[LemonTax] Mensaje ${messageId}: ${partes.filter(p=>p.body?.attachmentId).length} adjuntos totales, ${partesRelevantes.length} relevantes`);
+
   if (partesRelevantes.length === 0) return facturas;
 
   for (const parte of partesRelevantes) {
     const nombre = parte.filename?.toLowerCase() || "";
     const mime = parte.mimeType?.toLowerCase() || "";
 
-    // Caso 1: XML directo
     if (nombre.endsWith(".xml") || mime.includes("xml") || /^\d{3}-\d{3}-\d{9}/.test(nombre)) {
       try {
         const xml = await getAdjuntoTexto(token, messageId, parte.body.attachmentId);
         const factura = parsearXML(xml);
+        console.log(`[LemonTax] XML parseado:`, factura ? `✓ ${factura.emisor} $${factura.monto}` : "✗ no válido");
         if (factura) facturas.push(factura);
-      } catch (e) { /* ignorar */ }
+      } catch (e) { console.log(`[LemonTax] Error XML:`, e.message); }
     }
 
-    // Caso 2: ZIP con XMLs adentro
     if (nombre.endsWith(".zip") || mime.includes("zip")) {
       try {
         const bytes = await getAdjuntoBytes(token, messageId, parte.body.attachmentId);
         const xmls = await extraerXMLsDeZip(bytes);
+        console.log(`[LemonTax] ZIP: ${xmls.length} XMLs encontrados adentro`);
         for (const xml of xmls) {
           const factura = parsearXML(xml);
           if (factura) facturas.push(factura);
         }
-      } catch (e) { /* ignorar */ }
+      } catch (e) { console.log(`[LemonTax] Error ZIP:`, e.message); }
     }
   }
 
