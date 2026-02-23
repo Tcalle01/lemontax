@@ -65,13 +65,16 @@ export function AuthProvider({ children }) {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) throw new Error("No hay sesión activa");
 
+    const ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNpdXVoZ3FiZ3ZjbmR4amZ1ZWpjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE3ODI4ODEsImV4cCI6MjA4NzM1ODg4MX0.1vlTv7qNf_7dM4VuPS0lDOVc7CrKvBzAWZr28F5tZ0M";
+
     const res = await fetch(
       "https://ciuuhgqbgvcndxjfuejc.supabase.co/functions/v1/gmail-sync",
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "apikey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNpdXVoZ3FiZ3ZjbmR4amZ1ZWpjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE3ODI4ODEsImV4cCI6MjA4NzM1ODg4MX0.1vlTv7qNf_7dM4VuPS0lDOVc7CrKvBzAWZr28F5tZ0M",
+          "apikey": ANON_KEY,
+          "Authorization": `Bearer ${ANON_KEY}`,
         },
         body: JSON.stringify({ user_id: session.user.id }),
       }
