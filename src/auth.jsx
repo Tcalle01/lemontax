@@ -64,7 +64,7 @@ export function AuthProvider({ children }) {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) throw new Error("No hay sesión activa");
     const res = await fetch(
-      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/gmail-sync`,
+      `https://ciuuhgqbgvcndxjfuejc.supabase.co/functions/v1/gmail-sync`,
       {
         method: "POST",
         headers: {
