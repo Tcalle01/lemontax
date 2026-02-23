@@ -212,6 +212,18 @@ function categorizar(emisor: string, descripciones: string): string {
   const n = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   const txt = n(`${emisor} ${descripciones}`);
 
+  // ── Salud (va PRIMERO para evitar que "comisariato de medicinas" caiga en Alimentación) ──
+  if (/(farma|fybeca|sana.?sana|cruz.?azul|pharmacy|drogueria|botica|medicity)/.test(txt)) return "Salud";
+  if (/(clinica|hospital|policlinico|centro medico|consultorio|dispensario|emergencia|sanatorio|policlinica)/.test(txt)) return "Salud";
+  if (/(medico|doctor|medicina|medicinas|atencion medica|consulta medica|servicio medico)/.test(txt)) return "Salud";
+  if (/(odontologo|dental|dentista|ortodoncia|endodoncia|periodoncia|odontologia)/.test(txt)) return "Salud";
+  if (/(laboratorio clinico|laboratorio medico|laboratorio|rayos.?x|tomografia|resonancia|ecografia|mamografia|radiolog)/.test(txt)) return "Salud";
+  if (/(ginecolog|pediatr|cardiol|neurol|psicolog|psiquiatr|nutricion|dietista|fisioterapia|rehabilitacion|ortopedia|traumatolog|oftalm|urolog|dermatolog)/.test(txt)) return "Salud";
+  if (/(optica|optometria|lentes|gafas|audiolog|audiofono|audifono|protesis|ortesis)/.test(txt)) return "Salud";
+  if (/(metropolitano|de los valles|vozandes|baca ortiz|solca\b|iess\b|clinica pichincha|humanitaria|oncologico)/.test(txt)) return "Salud";
+  if (/(vacuna|vacunacion|cirugia|quirurgico|quirofano|examen medico|inyeccion)/.test(txt)) return "Salud";
+  if (/(seguro.?medico|seguro.?salud|seguro.?vida|prima.?seguro|poliza.?medica|cobertura.?medica|plan.?medico|equivida|equisuiza|humana\b|seguros bsf|latinoseguros|mapfre salud|panamericana vida)/.test(txt)) return "Salud";
+
   // ── Alimentación ─────────────────────────────────────────────────────────────
   if (/(supermaxi|megamaxi|gran aki|mediano aki|saludmarket|reposta|comisariato|hipermercado|supermercado|minimarket|autoservicio|superbodega|superdelis)/.test(txt)) return "Alimentación";
   if (/(tia\b|aki\b|santa maria\b|coral\b|la favorita|pronaca|dipaso|disco\b|supertienda)/.test(txt)) return "Alimentación";
@@ -222,17 +234,6 @@ function categorizar(emisor: string, descripciones: string): string {
   if (/(tipti|rappi|uber.?eat|glovo|ifood|pedidos.?ya|delivery)/.test(txt)) return "Alimentación";
   if (/(alimento|bebida|lacteo|embutido|carniceria|carnicos|frigorifico|avicola|pesquera|snack|galletas|cereales|harinas|condimento|aceite vegetal|víveres|viveres)/.test(txt)) return "Alimentación";
   if (/(comida|gastronomia|buffet|catering|cocina|almuerzo|desayuno|merienda|menu del dia)/.test(txt)) return "Alimentación";
-
-  // ── Salud ──────────────────────────────────────────────────────────────────
-  if (/(farmacia|fybeca|sana.?sana|cruz.?azul|pharmacy|drogueria|botica|medicity)/.test(txt)) return "Salud";
-  if (/(clinica|hospital|policlinico|centro medico|consultorio|dispensario|emergencia|sanatorio|policlinica)/.test(txt)) return "Salud";
-  if (/(medico|doctor|medicina|atencion medica|consulta medica|servicio medico)/.test(txt)) return "Salud";
-  if (/(odontologo|dental|dentista|ortodoncia|endodoncia|periodoncia|odontologia)/.test(txt)) return "Salud";
-  if (/(laboratorio clinico|laboratorio medico|laboratorio|rayos.?x|tomografia|resonancia|ecografia|mamografia|radiolog)/.test(txt)) return "Salud";
-  if (/(ginecolog|pediatr|cardiol|neurol|psicolog|psiquiatr|nutricion|dietista|fisioterapia|rehabilitacion|ortopedia|traumatolog|oftalm|urolog|dermatolog)/.test(txt)) return "Salud";
-  if (/(optica|optometria|lentes|gafas|audiolog|audiofono|audifono|protesis|ortesis)/.test(txt)) return "Salud";
-  if (/(metropolitano|de los valles|vozandes|baca ortiz|solca\b|iess\b|clinica pichincha|humanitaria|oncologico)/.test(txt)) return "Salud";
-  if (/(salud\b|health|bienestar|wellness|spa\b|masaje|quiropractic|acupuntura|vacuna|vacunacion)/.test(txt)) return "Salud";
 
   // ── Educación (internet aquí per regla SRI 2024) ──────────────────────────
   if (/(universidad|usfq|puce\b|uce\b|ute\b|udla\b|espe\b|espol\b|flacso|colegio|escuela|academia|instituto\b|politecnica|sede educativa|conservatorio)/.test(txt)) return "Educación";
@@ -293,12 +294,12 @@ Responde SOLO con un JSON array de strings en el mismo orden. Sin texto extra.
 
 Criterios:
 - Alimentación: supermercados, restaurantes, comida, bebidas, delivery, panaderías
-- Salud: farmacias, hospitales, clínicas, consultas médicas, exámenes, laboratorios, terapias, ópticas, dentistas
+- Salud: farmacias, hospitales, clínicas, consultas médicas, exámenes, laboratorios, terapias, ópticas, dentistas, seguros médicos o de salud (Equivida, Humana, etc.)
 - Educación: colegios, universidades, cursos, libros, útiles escolares, internet, arte, cultura, idiomas
 - Vivienda: arriendo, luz eléctrica, agua potable, gas, telefonía, cable TV, construcción, ferretería, muebles
 - Vestimenta: ropa, zapatos, calzado, accesorios de moda, telas
 - Turismo: hoteles, vuelos, tours, agencias de viaje, balnearios, hospedaje
-- Otros: gasolina, seguros, notarías, impuestos, municipio, servicios no clasificados
+- Otros: gasolina, seguros no médicos (auto, hogar), notarías, impuestos, municipio, servicios no clasificados
 
 Facturas:
 ${chunk.map((item, idx) => `${idx + 1}. Emisor: "${item.emisor}", RUC: ${item.ruc}, Desc: "${item.descripciones || "sin descripción"}"`).join("\n")}`;
@@ -388,7 +389,7 @@ async function sincronizarUsuario(
         fuente: "gmail",
         clave_acceso: item.claveAcceso || null,
       },
-      { onConflict: "user_id,clave_acceso", ignoreDuplicates: true }
+      { onConflict: "user_id,clave_acceso", ignoreDuplicates: false }
     );
 
     if (error) {
