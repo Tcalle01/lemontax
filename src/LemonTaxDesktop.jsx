@@ -390,80 +390,115 @@ function FacturasDesktop({ facturas, setFacturas }) {
 
 // ─── Conectar Screen ──────────────────────────────────────────────────────────
 function ConectarDesktop({ facturas, setFacturas, setSyncStatus, saveFacturas }) {
-  const [estado, setEstado] = useState("idle"); // idle | loading | success | error
-  const [progreso, setProgreso] = useState({ mensaje: "", actual: 0, total: 0 });
+  const { triggerSync } = useAuth();
+  const [estado, setEstado]     = useState("idle"); // idle | syncing | success | error
   const [resultado, setResultado] = useState(null);
-  const [gmailOk, setGmailOk] = useState(false);
+  const [lastSync, setLastSync]   = useState(null);
+  const { supabase: sb } = (() => { try { return { supabase: window._supabase }; } catch { return { supabase: null }; } })();
 
-  const handleConectar = async () => {
-    setEstado("loading");
+  // Cargar último sync al montar
+  useEffect(() => {
+    import("./supabase").then(({ supabase }) => {
+      supabase.auth.getUser().then(({ data: { user } }) => {
+        if (!user) return;
+        supabase
+          .from("gmail_tokens")
+          .select("last_sync")
+          .eq("user_id", user.id)
+          .single()
+          .then(({ data }) => { if (data?.last_sync) setLastSync(new Date(data.last_sync)); });
+      });
+    });
+  }, []);
+
+  const handleSync = async () => {
+    setEstado("syncing");
     setResultado(null);
     try {
-      const { importarDesdeGmail } = await import("./gmailImport.js");
-      const res = await importarDesdeGmail((p) => setProgreso(p));
-      setResultado(res);
-      if (res.facturas.length > 0) {
-        setFacturas(prev => {
-          // Evitar duplicados
-          const ids = new Set(prev.map(f => f.ruc + f.monto + f.fecha));
-          const nuevas = res.facturas.filter(f => !ids.has(f.ruc + f.monto + f.fecha));
-          // Guardar facturas nuevas en Supabase
-          if (nuevas.length > 0) saveFacturas(nuevas);
-          return [...nuevas, ...prev];
-        });
+      const res = await triggerSync();
+      const r = res.resultados?.[0];
+      setResultado({
+        nuevas:     r?.nuevas     ?? 0,
+        duplicadas: r?.duplicadas ?? 0,
+        errores:    r?.errores    ?? 0,
+      });
+      setLastSync(new Date());
+      if ((r?.nuevas ?? 0) > 0) {
+        // Recargar facturas desde Supabase
+        const { importarDesdeSupabase } = await import("./supabase");
         setSyncStatus("saved");
         setTimeout(() => setSyncStatus("idle"), 2000);
       }
       setEstado("success");
-      setGmailOk(true);
     } catch (e) {
       console.error(e);
       setEstado("error");
-      setResultado({ mensaje: e.message || "Error al conectar con Gmail" });
+      setResultado({ mensaje: e.message || "Error al sincronizar" });
     }
   };
 
-  const porcentaje = progreso.total > 0 ? Math.round((progreso.actual / progreso.total) * 100) : 0;
+  const formatLastSync = (date) => {
+    if (!date) return "Nunca";
+    const diff = Math.floor((Date.now() - date.getTime()) / 60000);
+    if (diff < 1) return "Hace un momento";
+    if (diff < 60) return `Hace ${diff} min`;
+    if (diff < 1440) return `Hace ${Math.floor(diff / 60)}h`;
+    return date.toLocaleDateString("es-EC");
+  };
 
   return (
     <div style={{ padding: "32px", overflowY: "auto", flex: 1 }}>
       <div style={{ marginBottom: 28 }}>
         <h1 style={{ color: C.text, fontSize: 24, fontWeight: 800, fontFamily: "Syne, sans-serif" }}>Conectar</h1>
-        <p style={{ color: C.textMid, fontSize: 13, marginTop: 4 }}>Importa tus facturas electrónicas automáticamente</p>
+        <p style={{ color: C.textMid, fontSize: 13, marginTop: 4 }}>Sync automático cada 12 horas — o manualmente cuando quieras</p>
       </div>
 
       <div style={{ maxWidth: 680, display: "flex", flexDirection: "column", gap: 16 }}>
 
-        {/* Gmail card */}
-        <div style={{ background: C.card, border: `1px solid ${gmailOk ? C.greenAccent : C.border}`, borderRadius: 16, padding: "24px" }}>
+        {/* Gmail sync card */}
+        <div style={{ background: C.card, border: `1px solid ${estado === "success" ? C.greenAccent : C.border}`, borderRadius: 16, padding: "24px" }}>
           <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
             <div style={{ width: 52, height: 52, borderRadius: 14, background: "#FDECEA30", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26, flexShrink: 0 }}>📧</div>
             <div style={{ flex: 1 }}>
+
+              {/* Header */}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                <p style={{ color: C.text, fontSize: 16, fontWeight: 700 }}>Gmail</p>
-                {gmailOk && <Badge color={C.greenAccent}>✓ Conectado</Badge>}
+                <p style={{ color: C.text, fontSize: 16, fontWeight: 700 }}>Gmail — Sync automático</p>
+                <Badge color={C.greenAccent}>✓ Conectado</Badge>
               </div>
-              <p style={{ color: C.textMid, fontSize: 13, lineHeight: 1.6, marginBottom: 16 }}>
-                Lemon Tax escanea tu bandeja buscando correos con archivos XML del SRI. Detecta y parsea facturas electrónicas automáticamente, categorizándolas por tipo de gasto.
+
+              {/* Último sync */}
+              <p style={{ color: C.textDim, fontSize: 12, marginBottom: 12 }}>
+                Último sync: <span style={{ color: C.textMid }}>{formatLastSync(lastSync)}</span>
+                <span style={{ color: C.textDim, marginLeft: 8 }}>· Próximo sync automático en ~12h</span>
               </p>
 
-              {/* Progress bar while loading */}
-              {estado === "loading" && (
+              <p style={{ color: C.textMid, fontSize: 13, lineHeight: 1.6, marginBottom: 16 }}>
+                Lemon Tax escanea tu Gmail en segundo plano cada 12 horas buscando XMLs del SRI y los guarda automáticamente. También puedes sincronizar ahora manualmente.
+              </p>
+
+              {/* Spinner mientras sincroniza */}
+              {estado === "syncing" && (
                 <div style={{ marginBottom: 16 }}>
-                  <p style={{ color: C.textMid, fontSize: 12, marginBottom: 8 }}>{progreso.mensaje || "Conectando..."}</p>
+                  <p style={{ color: C.textMid, fontSize: 12, marginBottom: 8 }}>Buscando facturas en Gmail...</p>
                   <div style={{ height: 6, background: C.border, borderRadius: 3, overflow: "hidden" }}>
-                    <div style={{ height: "100%", background: C.yellow, borderRadius: 3, width: progreso.total > 0 ? `${porcentaje}%` : "30%", transition: "width 0.4s ease", animation: progreso.total === 0 ? "pulse 1.5s infinite" : "none" }} />
+                    <div style={{ height: "100%", background: C.yellow, borderRadius: 3, width: "60%", animation: "pulse 1.5s ease-in-out infinite" }} />
                   </div>
-                  {progreso.total > 0 && <p style={{ color: C.textDim, fontSize: 11, marginTop: 4 }}>{progreso.actual} de {progreso.total} correos procesados</p>}
                 </div>
               )}
 
-              {/* Success result */}
+              {/* Resultado éxito */}
               {estado === "success" && resultado && (
                 <div style={{ background: C.greenAccent + "15", border: `1px solid ${C.greenAccent}30`, borderRadius: 10, padding: "14px 16px", marginBottom: 16 }}>
-                  <p style={{ color: C.greenAccent, fontSize: 13, fontWeight: 700 }}>✓ {resultado.mensaje}</p>
-                  {resultado.errores > 0 && <p style={{ color: C.textDim, fontSize: 11, marginTop: 4 }}>{resultado.errores} correos no pudieron procesarse</p>}
-                  <p style={{ color: C.textDim, fontSize: 11, marginTop: 4 }}>Las facturas aparecen en la pantalla de Facturas con badge "Gmail"</p>
+                  <p style={{ color: C.greenAccent, fontSize: 13, fontWeight: 700 }}>
+                    ✓ {resultado.nuevas} facturas nuevas guardadas
+                  </p>
+                  {resultado.duplicadas > 0 && (
+                    <p style={{ color: C.textDim, fontSize: 11, marginTop: 4 }}>{resultado.duplicadas} ya existían (omitidas)</p>
+                  )}
+                  {resultado.errores > 0 && (
+                    <p style={{ color: C.textDim, fontSize: 11, marginTop: 2 }}>{resultado.errores} emails no pudieron procesarse</p>
+                  )}
                 </div>
               )}
 
@@ -471,24 +506,29 @@ function ConectarDesktop({ facturas, setFacturas, setSyncStatus, saveFacturas })
               {estado === "error" && resultado && (
                 <div style={{ background: C.red + "15", border: `1px solid ${C.red}30`, borderRadius: 10, padding: "14px 16px", marginBottom: 16 }}>
                   <p style={{ color: C.red, fontSize: 13, fontWeight: 700 }}>⚠️ {resultado.mensaje}</p>
-                  <p style={{ color: C.textDim, fontSize: 11, marginTop: 4 }}>Verifica que tu cuenta de Google tenga acceso y vuelve a intentar</p>
+                  <p style={{ color: C.textDim, fontSize: 11, marginTop: 4 }}>
+                    Es posible que necesites volver a iniciar sesión para renovar el acceso a Gmail
+                  </p>
                 </div>
               )}
 
-              <div style={{ display: "flex", gap: 10 }}>
-                <button
-                  onClick={handleConectar}
-                  disabled={estado === "loading"}
-                  style={{ padding: "11px 24px", background: estado === "loading" ? C.border : C.yellow, color: estado === "loading" ? C.textDim : C.green, border: "none", borderRadius: 10, fontSize: 13, fontWeight: 800, cursor: estado === "loading" ? "not-allowed" : "pointer", fontFamily: "DM Sans, sans-serif" }}
-                >
-                  {estado === "loading" ? "Importando..." : gmailOk ? "🔄 Reimportar facturas" : "Conectar con Google"}
-                </button>
-                {gmailOk && (
-                  <button onClick={() => { setGmailOk(false); setEstado("idle"); setResultado(null); }} style={{ padding: "11px 18px", background: "transparent", color: C.textDim, border: `1px solid ${C.border}`, borderRadius: 10, fontSize: 13, cursor: "pointer", fontFamily: "DM Sans, sans-serif" }}>
-                    Desconectar
-                  </button>
-                )}
-              </div>
+              {/* Botón sync manual */}
+              <button
+                onClick={handleSync}
+                disabled={estado === "syncing"}
+                style={{
+                  padding: "11px 24px",
+                  background: estado === "syncing" ? C.border : C.yellow,
+                  color: estado === "syncing" ? C.textDim : C.green,
+                  border: "none", borderRadius: 10, fontSize: 13, fontWeight: 800,
+                  cursor: estado === "syncing" ? "not-allowed" : "pointer",
+                  fontFamily: "DM Sans, sans-serif",
+                  display: "flex", alignItems: "center", gap: 8,
+                }}
+              >
+                <span style={{ display: "inline-block", animation: estado === "syncing" ? "spin 1s linear infinite" : "none" }}>🔄</span>
+                {estado === "syncing" ? "Sincronizando..." : "Sincronizar ahora"}
+              </button>
             </div>
           </div>
         </div>
@@ -940,6 +980,8 @@ export default function LemonTaxDesktop() {
         input { caret-color: #F5E642; } input::placeholder { color: #4A6350; }
         input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
         button:hover { opacity: 0.88; }
+        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
       `}</style>
 
       {/* Sidebar con datos reales del usuario */}

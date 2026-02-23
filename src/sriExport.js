@@ -8,25 +8,25 @@ const GRIS = "F2F2F2";
 const VERDE_CLARO = "E8F5E9";
 const NEGRO = "000000";
 
+// Colores exactos del formulario oficial SRI
+const LILA = "CCCCFF";          // fondo campos de código (101-115)
+const MARINO = "000080";        // texto azul marino oficial
+const AZUL_CATAS = "00B0F0";    // sección enfermedad catastrófica y cargas
+const AZUL_CANASTA = "9DC3E6";  // valor canasta familiar básica
+
 function cellStyle(opts = {}) {
   return {
     font: {
       name: "Arial",
       sz: opts.sz || 10,
       bold: opts.bold || false,
-      color: { rgb: opts.fontColor || NEGRO },
+      color: { rgb: opts.fontColor || MARINO },
     },
     fill: opts.bg ? { fgColor: { rgb: opts.bg }, patternType: "solid" } : undefined,
     alignment: {
       horizontal: opts.align || "left",
       vertical: "center",
       wrapText: opts.wrap || false,
-    },
-    border: {
-      top: { style: "thin", color: { rgb: "CCCCCC" } },
-      bottom: { style: "thin", color: { rgb: "CCCCCC" } },
-      left: { style: "thin", color: { rgb: "CCCCCC" } },
-      right: { style: "thin", color: { rgb: "CCCCCC" } },
     },
   };
 }
@@ -61,49 +61,58 @@ export function generarFormularioGP({ perfil, facturas, rebaja, salarioAnual, ca
   const totalIngresos = salarioAnual + otrosAnual;
 
   // ── Título principal ──
-  ws["A1"] = { v: "DECLARACIÓN DE GASTOS PERSONALES A SER UTILIZADOS POR EL EMPLEADOR EN EL CASO DE INGRESOS EN RELACIÓN DE DEPENDENCIA", t: "s", s: cellStyle({ bold: true, sz: 11, fontColor: BLANCO, bg: VERDE, align: "center", wrap: true }) };
-  ws["A2"] = { v: "FORMULARIO SRI-GP", t: "s", s: cellStyle({ bold: true, sz: 12, fontColor: AMARILLO, bg: VERDE, align: "center" }) };
-  ws["A3"] = { v: `EJERCICIO FISCAL: ${new Date().getFullYear()}`, t: "s", s: cellStyle({ bold: true, sz: 10, fontColor: BLANCO, bg: VERDE }) };
+  ws["A1"] = { v: "DECLARACIÓN DE GASTOS PERSONALES A SER UTILIZADOS POR EL EMPLEADOR EN EL CASO DE INGRESOS EN RELACIÓN DE DEPENDENCIA", t: "s", s: cellStyle({ bold: true, sz: 11, fontColor: MARINO, bg: LILA, align: "center", wrap: true }) };
+  ws["A2"] = { v: "FORMULARIO SRI-GP", t: "s", s: cellStyle({ bold: true, sz: 12, fontColor: MARINO, bg: LILA, align: "center" }) };
+  ws["A3"] = { v: `EJERCICIO FISCAL: ${new Date().getFullYear()}`, t: "s", s: cellStyle({ bold: true, sz: 10, fontColor: MARINO, bg: BLANCO }) };
+  ws["D3"] = { v: "CIUDAD Y FECHA DE ENTREGA/RECEPCIÓN", t: "s", s: cellStyle({ bold: true, sz: 9, fontColor: MARINO, bg: BLANCO, align: "center" }) };
+  ws["E3"] = { v: "CIUDAD", t: "s", s: cellStyle({ bold: true, sz: 8, fontColor: MARINO, bg: BLANCO, align: "center" }) };
+  ws["F3"] = { v: "AÑO / MES / DÍA", t: "s", s: cellStyle({ bold: true, sz: 8, fontColor: MARINO, bg: BLANCO, align: "center" }) };
 
   // Merge title rows
   ws["!merges"] = [
     { s: { r: 0, c: 0 }, e: { r: 0, c: 5 } },
     { s: { r: 1, c: 0 }, e: { r: 1, c: 5 } },
-    { s: { r: 2, c: 0 }, e: { r: 2, c: 3 } },
+    { s: { r: 2, c: 0 }, e: { r: 2, c: 2 } },
+    { s: { r: 2, c: 3 }, e: { r: 2, c: 3 } },
   ];
 
   // ── Identificación del empleado ──
-  ws["A5"] = { v: "Información / Identificación del empleado contribuyente", t: "s", s: cellStyle({ bold: true, sz: 10, fontColor: BLANCO, bg: VERDE_CLARO.replace("E8F5E9", "2D5A3D") }) };
+  ws["A5"] = { v: "Información / Identificación del empleado contribuyente (a ser llenado por el empleado)", t: "s", s: cellStyle({ bold: true, sz: 10, fontColor: MARINO, bg: LILA }) };
   ws["!merges"].push({ s: { r: 4, c: 0 }, e: { r: 4, c: 5 } });
 
-  ws["A6"] = { v: "101", t: "s", s: cellStyle({ bold: true, bg: GRIS }) };
-  ws["B6"] = { v: "CÉDULA O PASAPORTE", t: "s", s: cellStyle({ bold: true, bg: GRIS }) };
-  ws["C6"] = { v: perfil.cedula || "", t: "s", s: cellStyle({ bold: true }) };
-  ws["D6"] = { v: "102", t: "s", s: cellStyle({ bold: true, bg: GRIS }) };
-  ws["E6"] = { v: "APELLIDOS Y NOMBRES COMPLETOS", t: "s", s: cellStyle({ bold: true, bg: GRIS }) };
-  ws["F6"] = { v: perfil.nombre || "", t: "s", s: cellStyle({ bold: true }) };
+  ws["A6"] = { v: "101", t: "s", s: cellStyle({ bold: true, bg: LILA, fontColor: MARINO, align: "center" }) };
+  ws["B6"] = { v: "CÉDULA O PASAPORTE", t: "s", s: cellStyle({ bold: false, fontColor: MARINO, bg: BLANCO }) };
+  ws["C6"] = { v: perfil.cedula || "", t: "s", s: cellStyle({ bold: true, fontColor: MARINO }) };
+  ws["D6"] = { v: "102", t: "s", s: cellStyle({ bold: true, bg: LILA, fontColor: MARINO, align: "center" }) };
+  ws["E6"] = { v: "APELLIDOS Y NOMBRES COMPLETOS", t: "s", s: cellStyle({ bold: false, fontColor: MARINO, bg: BLANCO }) };
+  ws["F6"] = { v: perfil.nombre || "", t: "s", s: cellStyle({ bold: true, fontColor: MARINO }) };
+
+  // ── Canasta familiar básica ──
+  ws["!merges"].push({ s: { r: 5, c: 3 }, e: { r: 5, c: 4 } });
+  ws["E7"] = { v: "VALOR USD CANASTA FAMILIAR BÁSICA", t: "s", s: cellStyle({ bold: true, sz: 9, fontColor: MARINO, bg: AZUL_CANASTA, align: "center", wrap: true }) };
+  ws["F7"] = { v: canasta, t: "n", s: cellStyle({ bold: true, sz: 11, fontColor: MARINO, bg: AZUL_CANASTA, align: "center" }) };
 
   // ── Ingresos proyectados ──
-  ws["A8"] = { v: "INGRESOS PROYECTADOS", t: "s", s: cellStyle({ bold: true, sz: 10, fontColor: BLANCO, bg: VERDE }) };
+  ws["A8"] = { v: "INGRESOS PROYECTADOS (ver Nota 1)", t: "s", s: cellStyle({ bold: true, sz: 10, fontColor: MARINO, bg: LILA }) };
   ws["!merges"].push({ s: { r: 7, c: 0 }, e: { r: 7, c: 5 } });
 
   const ingresosRows = [
-    ["103", "(+) TOTAL INGRESOS CON ESTE EMPLEADOR", salarioAnual],
-    ["104", "(+) TOTAL INGRESOS CON OTROS EMPLEADORES", otrosAnual],
+    ["103", "(+) TOTAL INGRESOS CON ESTE EMPLEADOR (con el empleador que más ingresos perciba)", salarioAnual],
+    ["104", "(+) TOTAL INGRESOS CON OTROS EMPLEADORES (en caso de haberlos)", otrosAnual],
     ["105", "(=) TOTAL INGRESOS PROYECTADOS", totalIngresos],
   ];
 
   ingresosRows.forEach(([cod, label, val], i) => {
     const row = 9 + i;
     const isTotal = cod === "105";
-    ws[`A${row}`] = { v: cod, t: "s", s: cellStyle({ bold: true, bg: isTotal ? GRIS : BLANCO, align: "center" }) };
-    ws[`B${row}`] = { v: label, t: "s", s: cellStyle({ bold: isTotal, bg: isTotal ? GRIS : BLANCO }) };
+    ws[`A${row}`] = { v: cod, t: "s", s: cellStyle({ bold: true, bg: LILA, fontColor: MARINO, align: "center" }) };
+    ws[`B${row}`] = { v: label, t: "s", s: cellStyle({ bold: isTotal, fontColor: MARINO, bg: BLANCO }) };
     ws["!merges"].push({ s: { r: row - 1, c: 1 }, e: { r: row - 1, c: 4 } });
-    ws[`F${row}`] = { v: parseFloat(fmt(val)), t: "n", s: cellStyle({ bold: isTotal, align: "right", bg: isTotal ? AMARILLO : BLANCO, fontColor: isTotal ? NEGRO : NEGRO }) };
+    ws[`F${row}`] = { v: parseFloat(fmt(val)), t: "n", s: cellStyle({ bold: isTotal, align: "right", bg: isTotal ? AMARILLO : BLANCO, fontColor: MARINO }) };
   });
 
   // ── Gastos proyectados ──
-  ws["A13"] = { v: "GASTOS PROYECTADOS", t: "s", s: cellStyle({ bold: true, sz: 10, fontColor: BLANCO, bg: VERDE }) };
+  ws["A13"] = { v: "GASTOS PROYECTADOS", t: "s", s: cellStyle({ bold: true, sz: 10, fontColor: MARINO, bg: LILA }) };
   ws["!merges"].push({ s: { r: 12, c: 0 }, e: { r: 12, c: 5 } });
 
   const gastosRows = [
@@ -119,43 +128,45 @@ export function generarFormularioGP({ perfil, facturas, rebaja, salarioAnual, ca
   gastosRows.forEach(([cod, label, val], i) => {
     const row = 14 + i;
     const isTotal = cod === "112";
-    ws[`A${row}`] = { v: cod, t: "s", s: cellStyle({ bold: true, bg: isTotal ? VERDE : GRIS, fontColor: isTotal ? AMARILLO : NEGRO, align: "center" }) };
-    ws[`B${row}`] = { v: label, t: "s", s: cellStyle({ bold: isTotal, bg: isTotal ? VERDE : BLANCO, fontColor: isTotal ? BLANCO : NEGRO }) };
+    ws[`A${row}`] = { v: cod, t: "s", s: cellStyle({ bold: true, bg: LILA, fontColor: MARINO, align: "center" }) };
+    ws[`B${row}`] = { v: label, t: "s", s: cellStyle({ bold: isTotal, fontColor: MARINO, bg: BLANCO }) };
     ws["!merges"].push({ s: { r: row - 1, c: 1 }, e: { r: row - 1, c: 4 } });
-    ws[`F${row}`] = { v: parseFloat(fmt(val)), t: "n", s: cellStyle({ bold: true, align: "right", bg: isTotal ? AMARILLO : BLANCO }) };
+    ws[`F${row}`] = { v: parseFloat(fmt(val)), t: "n", s: cellStyle({ bold: true, align: "right", bg: isTotal ? AMARILLO : BLANCO, fontColor: MARINO }) };
   });
 
   // ── Rebaja y cargas ──
-  ws["A22"] = { v: "TRABAJADOR CON DISCAPACIDAD / ENFERMEDAD CATASTRÓFICA", t: "s", s: cellStyle({ bold: true, bg: GRIS }) };
-  ws["!merges"].push({ s: { r: 21, c: 0 }, e: { r: 21, c: 4 } });
-  ws["A22"] = { v: "113", t: "s", s: cellStyle({ bold: true, bg: GRIS, align: "center" }) };
-  ws["B22"] = { v: "TRABAJADOR O CARGAS CON DISCAPACIDAD / ENF. CATASTRÓFICA", t: "s", s: cellStyle({ bg: GRIS }) };
+  ws["A22"] = { v: "113", t: "s", s: cellStyle({ bold: true, bg: AZUL_CATAS, fontColor: MARINO, align: "center" }) };
+  ws["B22"] = { v: "TRABAJADOR O SUS CARGAS FAMILIARES CON DISCAPACIDAD, ENFERMEDADES CATASTRÓFICAS, RARAS O HUÉRFANAS", t: "s", s: cellStyle({ bold: true, fontColor: MARINO, bg: AZUL_CATAS, wrap: true }) };
   ws["!merges"].push({ s: { r: 21, c: 1 }, e: { r: 21, c: 4 } });
-  ws["F22"] = { v: perfil.enfermedadCatastrofica ? "SÍ" : "NO", t: "s", s: cellStyle({ bold: true, align: "center" }) };
+  ws["F22"] = { v: perfil.enfermedadCatastrofica ? "SI" : "NO", t: "s", s: cellStyle({ bold: true, align: "center", fontColor: MARINO }) };
 
-  ws["A23"] = { v: "114", t: "s", s: cellStyle({ bold: true, align: "center" }) };
-  ws["B23"] = { v: "NÚMERO DE CARGAS FAMILIARES PARA REBAJA DE GASTOS PERSONALES", t: "s", s: cellStyle({}) };
+  ws["A23"] = { v: "114", t: "s", s: cellStyle({ bold: true, bg: LILA, fontColor: MARINO, align: "center" }) };
+  ws["B23"] = { v: "NÚMERO DE CARGAS FAMILIARES PARA REBAJA DE GASTOS PERSONALES", t: "s", s: cellStyle({ bold: true, fontColor: MARINO }) };
   ws["!merges"].push({ s: { r: 22, c: 1 }, e: { r: 22, c: 4 } });
-  ws["F23"] = { v: parseInt(perfil.cargas || 0), t: "n", s: cellStyle({ bold: true, align: "center" }) };
+  ws["F23"] = { v: parseInt(perfil.cargas || 0), t: "n", s: cellStyle({ bold: true, align: "center", fontColor: MARINO }) };
 
-  ws["A24"] = { v: "115", t: "s", s: cellStyle({ bold: true, bg: AMARILLO, align: "center" }) };
-  ws["B24"] = { v: "REBAJA DE IMPUESTO A LA RENTA POR GASTOS PERSONALES PROYECTADOS", t: "s", s: cellStyle({ bold: true, bg: AMARILLO }) };
+  ws["A24"] = { v: "115", t: "s", s: cellStyle({ bold: true, bg: LILA, fontColor: MARINO, align: "center" }) };
+  ws["B24"] = { v: "REBAJA DE IMPUESTO A LA RENTA POR GASTOS PERSONALES PROYECTADOS", t: "s", s: cellStyle({ bold: true, fontColor: MARINO }) };
   ws["!merges"].push({ s: { r: 23, c: 1 }, e: { r: 23, c: 4 } });
-  ws["F24"] = { v: parseFloat(fmt(rebaja)), t: "n", s: cellStyle({ bold: true, align: "right", bg: AMARILLO }) };
+  ws["F24"] = { v: parseFloat(fmt(rebaja)), t: "n", s: cellStyle({ bold: true, align: "right", bg: AMARILLO, fontColor: MARINO }) };
 
-  // ── Canasta familiar ──
-  ws["A26"] = { v: `VALOR CANASTA FAMILIAR BÁSICA (Enero ${new Date().getFullYear()}): $${canasta.toFixed(2)}`, t: "s", s: cellStyle({ sz: 9, fontColor: "666666" }) };
-  ws["!merges"].push({ s: { r: 25, c: 0 }, e: { r: 25, c: 5 } });
+  // ── Tabla cargas familiares (referencia) ──
+  ws["A26"] = { v: "Nro. Cargas", t: "s", s: cellStyle({ bold: true, sz: 8, fontColor: MARINO, bg: AZUL_CATAS, align: "center" }) };
+  ws["B26"] = { v: "Nro. Canastas Básicas", t: "s", s: cellStyle({ bold: true, sz: 8, fontColor: MARINO, bg: AZUL_CATAS, align: "center" }) };
+  [["0","7"],["1","9"],["2","11"],["3","14"],["4","17"],["5 o más","20"]].forEach(([nc, ncan], i) => {
+    ws[`A${27+i}`] = { v: nc, t: "s", s: cellStyle({ sz: 9, fontColor: MARINO, align: "center" }) };
+    ws[`B${27+i}`] = { v: ncan, t: "s", s: cellStyle({ sz: 9, fontColor: MARINO, align: "center" }) };
+  });
 
   // ── Firmas ──
-  ws["A28"] = { v: "EMPLEADOR / AGENTE DE RETENCIÓN", t: "s", s: cellStyle({ bold: true, align: "center", bg: GRIS }) };
-  ws["!merges"].push({ s: { r: 27, c: 0 }, e: { r: 27, c: 2 } });
-  ws["D28"] = { v: "EMPLEADO CONTRIBUYENTE", t: "s", s: cellStyle({ bold: true, align: "center", bg: GRIS }) };
-  ws["!merges"].push({ s: { r: 27, c: 3 }, e: { r: 27, c: 5 } });
-  ws["A31"] = { v: "Firma y sello", t: "s", s: cellStyle({ align: "center", fontColor: "999999" }) };
-  ws["!merges"].push({ s: { r: 30, c: 0 }, e: { r: 30, c: 2 } });
-  ws["D31"] = { v: "Firma", t: "s", s: cellStyle({ align: "center", fontColor: "999999" }) };
-  ws["!merges"].push({ s: { r: 30, c: 3 }, e: { r: 30, c: 5 } });
+  ws["A34"] = { v: "EMPLEADOR / AGENTE DE RETENCIÓN", t: "s", s: cellStyle({ bold: true, align: "center", bg: LILA, fontColor: MARINO }) };
+  ws["!merges"].push({ s: { r: 33, c: 0 }, e: { r: 33, c: 2 } });
+  ws["D34"] = { v: "EMPLEADO CONTRIBUYENTE", t: "s", s: cellStyle({ bold: true, align: "center", bg: LILA, fontColor: MARINO }) };
+  ws["!merges"].push({ s: { r: 33, c: 3 }, e: { r: 33, c: 5 } });
+  ws["A37"] = { v: "Firma y sello", t: "s", s: cellStyle({ align: "center", fontColor: "999999" }) };
+  ws["!merges"].push({ s: { r: 36, c: 0 }, e: { r: 36, c: 2 } });
+  ws["D37"] = { v: "Firma", t: "s", s: cellStyle({ align: "center", fontColor: "999999" }) };
+  ws["!merges"].push({ s: { r: 36, c: 3 }, e: { r: 36, c: 5 } });
 
   // Column widths
   ws["!cols"] = [
@@ -165,12 +176,15 @@ export function generarFormularioGP({ perfil, facturas, rebaja, salarioAnual, ca
   // Row heights
   ws["!rows"] = [
     { hpt: 40 }, { hpt: 24 }, { hpt: 18 }, { hpt: 10 },
-    { hpt: 18 }, { hpt: 20 }, { hpt: 10 }, { hpt: 18 },
+    { hpt: 18 }, { hpt: 20 }, { hpt: 18 }, { hpt: 10 }, { hpt: 18 },
     { hpt: 20 }, { hpt: 20 }, { hpt: 20 }, { hpt: 10 }, { hpt: 18 },
     { hpt: 20 }, { hpt: 20 }, { hpt: 20 }, { hpt: 20 }, { hpt: 20 }, { hpt: 20 }, { hpt: 24 },
+    { hpt: 18 }, { hpt: 18 }, { hpt: 20 }, { hpt: 10 },
+    { hpt: 16 }, { hpt: 16 }, { hpt: 16 }, { hpt: 16 }, { hpt: 16 }, { hpt: 16 }, { hpt: 16 },
+    { hpt: 10 }, { hpt: 10 }, { hpt: 20 }, { hpt: 10 }, { hpt: 10 }, { hpt: 30 },
   ];
 
-  ws["!ref"] = "A1:F31";
+  ws["!ref"] = "A1:F37";
   XLSX.utils.book_append_sheet(wb, ws, "GP");
   XLSX.writeFile(wb, `Formulario_GP_${new Date().getFullYear()}_${perfil.cedula || "SRI"}.xlsx`);
 }
@@ -200,21 +214,38 @@ export function generarAnexoGSP({ perfil, facturas }) {
 
   const deducibles = facturas.filter(f => f.sri && sriMap[f.categoria]);
 
-  deducibles.forEach((f, i) => {
+  // Agrupar por RUC + tipo de gasto, sumando comprobantes y base imponible
+  const agrupado = {};
+  deducibles.forEach(f => {
+    const key = `${f.ruc}||${f.categoria}`;
+    if (!agrupado[key]) {
+      agrupado[key] = {
+        ruc: f.ruc || "",
+        tipo: sriMap[f.categoria],
+        comprobantes: 0,
+        monto: 0,
+      };
+    }
+    agrupado[key].comprobantes += f.comprobantes || 1;
+    agrupado[key].monto += f.monto || 0;
+  });
+
+  const filas = Object.values(agrupado);
+
+  filas.forEach((f, i) => {
     const row = i + 2;
-    const isEven = i % 2 === 0;
-    const bg = isEven ? BLANCO : GRIS;
-    ws1[`A${row}`] = { v: f.ruc || "", t: "s", s: cellStyle({ bg }) };
-    ws1[`B${row}`] = { v: f.comprobantes || 1, t: "n", s: cellStyle({ bg, align: "center" }) };
+    const bg = i % 2 === 0 ? BLANCO : GRIS;
+    ws1[`A${row}`] = { v: f.ruc, t: "s", s: cellStyle({ bg }) };
+    ws1[`B${row}`] = { v: f.comprobantes, t: "n", s: cellStyle({ bg, align: "center" }) };
     ws1[`C${row}`] = { v: parseFloat(fmt(f.monto)), t: "n", s: cellStyle({ bg, align: "right" }) };
-    ws1[`D${row}`] = { v: sriMap[f.categoria] || f.categoria.toUpperCase(), t: "s", s: cellStyle({ bg }) };
+    ws1[`D${row}`] = { v: f.tipo, t: "s", s: cellStyle({ bg }) };
   });
 
   // Total row
-  const totalRow = deducibles.length + 2;
+  const totalRow = filas.length + 2;
   ws1[`A${totalRow}`] = { v: "TOTAL", t: "s", s: cellStyle({ bold: true, bg: AMARILLO, align: "right" }) };
-  ws1[`B${totalRow}`] = { v: deducibles.reduce((a, b) => a + (b.comprobantes || 1), 0), t: "n", s: cellStyle({ bold: true, bg: AMARILLO, align: "center" }) };
-  ws1[`C${totalRow}`] = { v: parseFloat(fmt(deducibles.reduce((a, b) => a + b.monto, 0))), t: "n", s: cellStyle({ bold: true, bg: AMARILLO, align: "right" }) };
+  ws1[`B${totalRow}`] = { v: filas.reduce((a, b) => a + b.comprobantes, 0), t: "n", s: cellStyle({ bold: true, bg: AMARILLO, align: "center" }) };
+  ws1[`C${totalRow}`] = { v: parseFloat(fmt(filas.reduce((a, b) => a + b.monto, 0))), t: "n", s: cellStyle({ bold: true, bg: AMARILLO, align: "right" }) };
   ws1[`D${totalRow}`] = { v: "", t: "s", s: cellStyle({ bg: AMARILLO }) };
 
   ws1["!cols"] = [{ wch: 20 }, { wch: 28 }, { wch: 18 }, { wch: 30 }];
