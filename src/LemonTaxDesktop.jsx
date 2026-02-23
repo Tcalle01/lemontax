@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { generarFormularioGP, generarAnexoGSP } from "./sriExport";
-import { useAuth } from "./auth";
+import { useAuth } from "./auth.jsx";
 import { supabase } from "./supabase";
 
 // ─── Design tokens ────────────────────────────────────────────────────────────

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { AuthProvider, useAuth } from "./auth";
+import { AuthProvider, useAuth } from "./auth.jsx";
 import LoginScreen from "./LoginScreen";
 import LemonTaxMobile from "./LemonTaxMobile";
 import LemonTaxDesktop from "./LemonTaxDesktop";
