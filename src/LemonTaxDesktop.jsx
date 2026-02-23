@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { generarFormularioGP, generarAnexoGSP } from "./sriExport";
+import { useAuth } from "./auth";
+import { supabase } from "./supabase";
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const C = {
@@ -387,7 +389,7 @@ function FacturasDesktop({ facturas, setFacturas }) {
 }
 
 // ─── Conectar Screen ──────────────────────────────────────────────────────────
-function ConectarDesktop({ facturas, setFacturas, setSyncStatus }) {
+function ConectarDesktop({ facturas, setFacturas, setSyncStatus, saveFacturas }) {
   const [estado, setEstado] = useState("idle"); // idle | loading | success | error
   const [progreso, setProgreso] = useState({ mensaje: "", actual: 0, total: 0 });
   const [resultado, setResultado] = useState(null);
@@ -405,6 +407,8 @@ function ConectarDesktop({ facturas, setFacturas, setSyncStatus }) {
           // Evitar duplicados
           const ids = new Set(prev.map(f => f.ruc + f.monto + f.fecha));
           const nuevas = res.facturas.filter(f => !ids.has(f.ruc + f.monto + f.fecha));
+          // Guardar facturas nuevas en Supabase
+          if (nuevas.length > 0) saveFacturas(nuevas);
           return [...nuevas, ...prev];
         });
         setSyncStatus("saved");
@@ -819,19 +823,113 @@ function DeclaracionDesktop({ facturas, perfil, updatePerfil, savePerfil, syncSt
 
 // ─── Root ─────────────────────────────────────────────────────────────────────
 export default function LemonTaxDesktop() {
+  const { user, logout } = useAuth();
   const [screen, setScreen] = useState("dashboard");
-  const [facturas, setFacturas] = useState(MOCK_FACTURAS);
+  const [facturas, setFacturas] = useState([]);
   const [perfil, setPerfil] = useState({ cedula: "", nombre: "", salario: "", otrosIngresos: "", cargas: "0", enfermedadCatastrofica: false });
   const [syncStatus, setSyncStatus] = useState("idle");
+  const [appLoading, setAppLoading] = useState(true);
+
+  // Cargar datos del usuario desde Supabase al iniciar
+  useEffect(() => {
+    if (!user) return;
+    async function loadData() {
+      setAppLoading(true);
+      try {
+        const [{ data: facturasData }, { data: perfilData }] = await Promise.all([
+          supabase.from("facturas").select("*").eq("user_id", user.id).order("fecha", { ascending: false }),
+          supabase.from("perfil").select("*").eq("user_id", user.id).maybeSingle(),
+        ]);
+        if (facturasData?.length > 0) {
+          setFacturas(facturasData.map(f => ({
+            id: f.id, emisor: f.emisor, ruc: f.ruc || "", fecha: f.fecha,
+            monto: f.monto, categoria: f.categoria, sri: f.es_deducible_sri,
+            comprobantes: f.comprobantes || 1, fuente: f.fuente || "manual",
+          })));
+        }
+        if (perfilData) {
+          setPerfil({
+            cedula: perfilData.cedula || "",
+            nombre: perfilData.nombre || "",
+            salario: perfilData.salario_mensual?.toString() || "",
+            otrosIngresos: perfilData.otros_ingresos?.toString() || "",
+            cargas: perfilData.cargas_familiares?.toString() || "0",
+            enfermedadCatastrofica: perfilData.enfermedad_catastrofica || false,
+            _id: perfilData.id,
+          });
+        }
+      } catch (e) {
+        console.error("Error cargando datos:", e);
+      }
+      setAppLoading(false);
+    }
+    loadData();
+  }, [user]);
 
   const updatePerfil = (k, v) => setPerfil(prev => ({ ...prev, [k]: v }));
+
   const savePerfil = async (p) => {
     if (!navigator.onLine) { setSyncStatus("error"); return; }
     setSyncStatus("saving");
-    await new Promise(r => setTimeout(r, 800)); // replace with supabase call
-    setSyncStatus("saved");
-    setTimeout(() => setSyncStatus("idle"), 2000);
+    try {
+      const payload = {
+        user_id: user.id,
+        cedula: p.cedula,
+        nombre: p.nombre,
+        salario_mensual: parseFloat(p.salario) || 0,
+        otros_ingresos: parseFloat(p.otrosIngresos) || 0,
+        cargas_familiares: parseInt(p.cargas) || 0,
+        enfermedad_catastrofica: p.enfermedadCatastrofica || false,
+      };
+      if (p._id) {
+        await supabase.from("perfil").update(payload).eq("id", p._id);
+      } else {
+        const { data } = await supabase.from("perfil").insert(payload).select().single();
+        if (data) setPerfil(prev => ({ ...prev, _id: data.id }));
+      }
+      setSyncStatus("saved");
+      setTimeout(() => setSyncStatus("idle"), 2000);
+    } catch (e) {
+      setSyncStatus("error");
+    }
   };
+
+  // Guardar facturas importadas en Supabase
+  const saveFacturas = async (nuevasFacturas) => {
+    if (!user || nuevasFacturas.length === 0) return;
+    setSyncStatus("saving");
+    try {
+      const payload = nuevasFacturas.map(f => ({
+        user_id: user.id,
+        emisor: f.emisor,
+        ruc: f.ruc,
+        fecha: f.fecha,
+        monto: f.monto,
+        categoria: f.categoria,
+        es_deducible_sri: f.sri,
+        comprobantes: f.comprobantes || 1,
+        fuente: f.fuente || "gmail",
+      }));
+      await supabase.from("facturas").upsert(payload, { onConflict: "user_id,ruc,fecha,monto" });
+      setSyncStatus("saved");
+      setTimeout(() => setSyncStatus("idle"), 2000);
+    } catch (e) {
+      console.error("Error guardando facturas:", e);
+      setSyncStatus("error");
+    }
+  };
+
+  // Nombre e inicial del usuario
+  const userName = user?.user_metadata?.full_name || user?.email?.split("@")[0] || "Usuario";
+  const userAvatar = user?.user_metadata?.avatar_url;
+  const initiales = userName.split(" ").map(n => n[0]).slice(0, 2).join("").toUpperCase();
+
+  if (appLoading) return (
+    <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh", background: "#0D1F14", flexDirection: "column", gap: 12 }}>
+      <span style={{ fontSize: 48 }}>🍋</span>
+      <p style={{ color: "#F5E642", fontSize: 20, fontWeight: 800, fontFamily: "sans-serif" }}>Cargando...</p>
+    </div>
+  );
 
   return (
     <div style={{ display: "flex", height: "100vh", background: C.bg, fontFamily: "'DM Sans', sans-serif", overflow: "hidden" }}>
@@ -844,9 +942,54 @@ export default function LemonTaxDesktop() {
         button:hover { opacity: 0.88; }
       `}</style>
 
-      <Sidebar screen={screen} setScreen={setScreen} />
+      {/* Sidebar con datos reales del usuario */}
+      <div style={{ width: 220, background: C.surface, borderRight: `1px solid ${C.border}`, display: "flex", flexDirection: "column", flexShrink: 0 }}>
+        <div style={{ padding: "28px 24px 20px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: 24 }}>🍋</span>
+            <div>
+              <p style={{ color: C.yellow, fontSize: 16, fontWeight: 800, fontFamily: "Syne, sans-serif", lineHeight: 1 }}>Lemon Tax</p>
+              <p style={{ color: C.textDim, fontSize: 10, marginTop: 2 }}>Período fiscal 2025</p>
+            </div>
+          </div>
+        </div>
+        <nav style={{ padding: "8px 12px", flex: 1 }}>
+          {[
+            { id: "dashboard", icon: "◈", label: "Dashboard" },
+            { id: "facturas", icon: "≡", label: "Facturas" },
+            { id: "declaracion", icon: "📋", label: "Formularios SRI" },
+            { id: "conectar", icon: "⊕", label: "Conectar" },
+          ].map(item => {
+            const active = screen === item.id;
+            return (
+              <button key={item.id} onClick={() => setScreen(item.id)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 10, border: "none", cursor: "pointer", background: active ? C.yellowDim : "transparent", marginBottom: 4, transition: "all 0.15s", textAlign: "left" }}>
+                <span style={{ fontSize: 16, color: active ? C.yellow : C.textDim }}>{item.icon}</span>
+                <span style={{ fontSize: 13, fontWeight: active ? 700 : 500, color: active ? C.yellow : C.textMid, fontFamily: "DM Sans, sans-serif" }}>{item.label}</span>
+                {active && <div style={{ marginLeft: "auto", width: 4, height: 4, borderRadius: 2, background: C.yellow }} />}
+              </button>
+            );
+          })}
+        </nav>
+        {/* User info + logout */}
+        <div style={{ padding: "16px", borderTop: `1px solid ${C.border}` }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+            {userAvatar ? (
+              <img src={userAvatar} style={{ width: 34, height: 34, borderRadius: 10, objectFit: "cover" }} alt="avatar" />
+            ) : (
+              <div style={{ width: 34, height: 34, borderRadius: 10, background: C.yellow, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800, color: C.green, fontFamily: "Syne, sans-serif" }}>{initiales}</div>
+            )}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ color: C.text, fontSize: 12, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{userName}</p>
+              <p style={{ color: C.textDim, fontSize: 10, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user?.email}</p>
+            </div>
+          </div>
+          <button onClick={logout} style={{ width: "100%", padding: "8px", background: "transparent", color: C.textDim, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, cursor: "pointer", fontFamily: "DM Sans, sans-serif" }}>
+            Cerrar sesión
+          </button>
+        </div>
+      </div>
 
-      {/* Topbar */}
+      {/* Main content */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         <div style={{ background: C.surface, borderBottom: `1px solid ${C.border}`, padding: "0 32px", height: 52, display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
           <p style={{ color: C.textDim, fontSize: 12 }}>
@@ -857,15 +1000,14 @@ export default function LemonTaxDesktop() {
             {syncStatus === "saved" && <span style={{ color: C.greenAccent, fontSize: 12 }}>✓ Guardado</span>}
             {syncStatus === "error" && <span style={{ color: C.red, fontSize: 12 }}>✗ Sin conexión</span>}
             <div style={{ width: 8, height: 8, borderRadius: 4, background: C.greenAccent }} />
-            <span style={{ color: C.textMid, fontSize: 12 }}>Conectado a Supabase</span>
+            <span style={{ color: C.textMid, fontSize: 12 }}>Conectado</span>
           </div>
         </div>
 
-        {/* Screens */}
         <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
           {screen === "dashboard" && <DashboardDesktop facturas={facturas} perfil={perfil} navigate={setScreen} />}
           {screen === "facturas" && <FacturasDesktop facturas={facturas} setFacturas={setFacturas} />}
-          {screen === "conectar" && <ConectarDesktop facturas={facturas} setFacturas={setFacturas} setSyncStatus={setSyncStatus} />}
+          {screen === "conectar" && <ConectarDesktop facturas={facturas} setFacturas={setFacturas} setSyncStatus={setSyncStatus} saveFacturas={saveFacturas} />}
           {screen === "declaracion" && <DeclaracionDesktop facturas={facturas} perfil={perfil} updatePerfil={updatePerfil} savePerfil={savePerfil} syncStatus={syncStatus} />}
         </div>
       </div>
