@@ -9,7 +9,6 @@ const GOOGLE_CLIENT_ID = Deno.env.get("GOOGLE_CLIENT_ID")!;
 const GOOGLE_CLIENT_SECRET = Deno.env.get("GOOGLE_CLIENT_SECRET")!;
 const AÑO = "2025";
 
-// ─── Refrescar access token con refresh token ─────────────────────────────────
 async function refrescarToken(refreshToken: string): Promise<string | null> {
   const res = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
@@ -27,7 +26,6 @@ async function refrescarToken(refreshToken: string): Promise<string | null> {
   return null;
 }
 
-// ─── Buscar emails con XMLs del SRI en Gmail ──────────────────────────────────
 async function buscarEmailIds(accessToken: string): Promise<string[]> {
   const query = `has:attachment (filename:xml OR filename:zip) after:${AÑO}/01/01`;
   const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}&maxResults=500`;
@@ -38,7 +36,6 @@ async function buscarEmailIds(accessToken: string): Promise<string[]> {
   return (data.messages || []).map((m: { id: string }) => m.id);
 }
 
-// ─── Descargar un attachment por ID ──────────────────────────────────────────
 async function descargarAttachment(
   accessToken: string,
   messageId: string,
@@ -55,7 +52,6 @@ async function descargarAttachment(
   return bytes;
 }
 
-// ─── Extraer XMLs de un ZIP ───────────────────────────────────────────────────
 async function extraerXMLsDeZip(zipBytes: Uint8Array): Promise<string[]> {
   const xmls: string[] = [];
   const view = new DataView(zipBytes.buffer);
@@ -106,7 +102,6 @@ async function extraerXMLsDeZip(zipBytes: Uint8Array): Promise<string[]> {
   return xmls;
 }
 
-// ─── Extraer XMLs de un mensaje de Gmail ─────────────────────────────────────
 async function extraerXMLsDelMensaje(accessToken: string, messageId: string): Promise<string[]> {
   const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}?format=full`;
   const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
@@ -135,7 +130,6 @@ async function extraerXMLsDelMensaje(accessToken: string, messageId: string): Pr
   return xmls;
 }
 
-// ─── Parsear XML del SRI ──────────────────────────────────────────────────────
 function parsearXML(xmlString: string): any | null {
   try {
     if (xmlString.includes("SharingMessage") || xmlString.includes("<html")) return null;
@@ -157,10 +151,8 @@ function parsearXML(xmlString: string): any | null {
     const codDoc = get("codDoc");
 
     if (!ruc || monto <= 0) return null;
-    // Solo facturas, notas de débito/crédito (ignorar otros tipos)
     if (codDoc && !["01", "03", "04", "05", "06", ""].includes(codDoc)) return null;
 
-    // Fecha DD/MM/YYYY → YYYY-MM-DD
     let fecha = fechaEmision;
     if (fechaEmision?.includes("/")) {
       const [d, m, y] = fechaEmision.split("/");
@@ -178,7 +170,6 @@ function parsearXML(xmlString: string): any | null {
   }
 }
 
-// ─── Categorizar por emisor y descripción ────────────────────────────────────
 function categorizar(emisor: string, descripciones: string): string {
   const txt = `${emisor} ${descripciones}`.toLowerCase();
   if (/supermaxi|coral|megamaxi|aki|tia|santa maria|comisariato|market|supermercado|restaurante|kfc|mcdonalds|burger|pizza|tipti|rappi|uber.?eat|glovo|delivery|frutería|panadería|cafetería|cafe/.test(txt)) return "Alimentación";
@@ -190,7 +181,6 @@ function categorizar(emisor: string, descripciones: string): string {
   return "Otros";
 }
 
-// ─── Sincronizar facturas de un usuario ──────────────────────────────────────
 async function sincronizarUsuario(
   supabase: ReturnType<typeof createClient>,
   userId: string,
@@ -240,7 +230,6 @@ async function sincronizarUsuario(
     }
   }
 
-  // Actualizar timestamp último sync
   await supabase
     .from("gmail_tokens")
     .update({ last_sync: new Date().toISOString() })
@@ -264,22 +253,14 @@ Deno.serve(async (req) => {
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
   try {
-    const authHeader = req.headers.get("Authorization");
+    const body = await req.json().catch(() => ({}));
     let userIds: string[] = [];
 
-    if (authHeader && authHeader.startsWith("Bearer ")) {
-      // Llamada manual desde la UI — sync solo del usuario que llama
-      const token = authHeader.replace("Bearer ", "");
-      const { data: { user }, error } = await supabase.auth.getUser(token);
-      if (error || !user) {
-        return new Response(JSON.stringify({ error: "No autorizado" }), {
-          status: 401,
-          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
-        });
-      }
-      userIds = [user.id];
+    if (body.user_id) {
+      // Llamada manual desde la UI — sync solo de este usuario
+      userIds = [body.user_id];
     } else {
-      // Cron job — procesar todos los usuarios con token guardado
+      // Cron job — todos los usuarios con token
       const { data: tokens, error } = await supabase
         .from("gmail_tokens")
         .select("user_id")
