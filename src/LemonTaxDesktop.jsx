@@ -118,21 +118,24 @@ function StatCard({ icon, label, value, sub, accent }) {
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
 function Sidebar({ screen, setScreen }) {
   const items = [
-    { id: "dashboard", icon: "◈", label: "Dashboard" },
-    { id: "facturas", icon: "≡", label: "Facturas" },
-    { id: "declaracion", icon: "📋", label: "Formularios SRI" },
-    { id: "conectar", icon: "⊕", label: "Conectar" },
+    { id: "dashboard", icon: "home", label: "Inicio" },
+    { id: "facturas", icon: "receipt", label: "Facturas" },
+    { id: "declaracion", icon: "check_circle", label: "Tu declaración" },
+    { id: "conectar", icon: "sync", label: "Sincronizar" },
   ];
   return (
     <div style={{ width: 220, background: C.surface, borderRight: `1px solid ${C.border}`, display: "flex", flexDirection: "column", flexShrink: 0 }}>
       {/* Logo */}
       <div style={{ padding: "28px 24px 20px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ fontSize: 24 }}>🍋</span>
-          <div>
-            <p style={{ color: C.yellow, fontSize: 16, fontWeight: 800, fontFamily: "Syne, sans-serif", lineHeight: 1 }}>Lemon Tax</p>
-            <p style={{ color: C.textDim, fontSize: 10, marginTop: 2 }}>Período fiscal 2025</p>
-          </div>
+          <svg width="30" height="30" viewBox="0 0 56 56" fill="none" style={{flexShrink:0}}>
+              <rect width="56" height="56" rx="14" fill="#F5E642"/>
+              <path d="M14 28.5L23.5 38L42 19" stroke="#1A3A2A" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            <div>
+              <p style={{ color: C.yellow, fontSize: 16, fontWeight: 800, fontFamily: "Syne, sans-serif", lineHeight: 1 }}>facilito</p>
+              <p style={{ color: C.textDim, fontSize: 10, marginTop: 2 }}>tus impuestos, facilito</p>
+            </div>
         </div>
       </div>
 
@@ -147,7 +150,12 @@ function Sidebar({ screen, setScreen }) {
               background: active ? C.yellowDim : "transparent",
               marginBottom: 4, transition: "all 0.15s", textAlign: "left",
             }}>
-              <span style={{ fontSize: 16, color: active ? C.yellow : C.textDim }}>{item.icon}</span>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" style={{flexShrink:0}}>
+              {item.icon === "home"         && <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" fill={active ? C.yellow : C.textDim}/>}
+              {item.icon === "receipt"      && <path d="M19.5 3.5L18 2l-1.5 1.5L15 2l-1.5 1.5L12 2l-1.5 1.5L9 2 7.5 3.5 6 2 4.5 3.5 3 2v20l1.5-1.5L6 22l1.5-1.5L9 22l1.5-1.5L12 22l1.5-1.5L15 22l1.5-1.5L18 22l1.5-1.5L21 22V2l-1.5 1.5z" fill={active ? C.yellow : C.textDim}/>}
+              {item.icon === "check_circle" && <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" fill={active ? C.yellow : C.textDim}/>}
+              {item.icon === "sync"         && <path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z" fill={active ? C.yellow : C.textDim}/>}
+            </svg>
               <span style={{ fontSize: 13, fontWeight: active ? 700 : 500, color: active ? C.yellow : C.textMid, fontFamily: "DM Sans, sans-serif" }}>{item.label}</span>
               {active && <div style={{ marginLeft: "auto", width: 4, height: 4, borderRadius: 2, background: C.yellow }} />}
             </button>
@@ -169,8 +177,8 @@ function Sidebar({ screen, setScreen }) {
   );
 }
 
-// ─── Dashboard Screen ─────────────────────────────────────────────────────────
-function DashboardDesktop({ facturas, perfil, navigate }) {
+// ─── Inicio Screen ─────────────────────────────────────────────────────────
+function InicioDesktop({ facturas, perfil, navigate }) {
   const total = facturas.reduce((a, b) => a + b.monto, 0);
   const deducible = facturas.filter(f => f.sri).reduce((a, b) => a + b.monto, 0);
   const salarioAnual = parseFloat(perfil.salario || 0) * 12;
@@ -187,8 +195,8 @@ function DashboardDesktop({ facturas, perfil, navigate }) {
     <div style={{ padding: "32px", overflowY: "auto", flex: 1 }}>
       {/* Header */}
       <div style={{ marginBottom: 28 }}>
-        <h1 style={{ color: C.text, fontSize: 24, fontWeight: 800, fontFamily: "Syne, sans-serif" }}>Dashboard</h1>
-        <p style={{ color: C.textMid, fontSize: 13, marginTop: 4 }}>Resumen de gastos personales · Año fiscal 2025</p>
+        <h1 style={{ color: C.text, fontSize: 24, fontWeight: 800, fontFamily: "Syne, sans-serif" }}>Inicio</h1>
+        <p style={{ color: C.textMid, fontSize: 13, marginTop: 4 }}>Todo bien, estás al día · 2025</p>
       </div>
 
       {/* Alert if no salary */}
@@ -196,8 +204,8 @@ function DashboardDesktop({ facturas, perfil, navigate }) {
         <div onClick={() => navigate("declaracion")} style={{ background: C.yellowDim, border: `1px solid ${C.yellow}40`, borderRadius: 12, padding: "14px 18px", marginBottom: 24, display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }}>
           <span style={{ fontSize: 18 }}>⚠️</span>
           <div style={{ flex: 1 }}>
-            <p style={{ color: C.yellow, fontSize: 13, fontWeight: 700 }}>Registra tu salario para el cálculo exacto de rebaja IR</p>
-            <p style={{ color: C.yellow, opacity: 0.7, fontSize: 12 }}>Click aquí para ir a Formularios SRI →</p>
+            <p style={{ color: C.yellow, fontSize: 13, fontWeight: 700 }}>Agrega tu salario para ver tu rebaja exacta</p>
+            <p style={{ color: C.yellow, opacity: 0.7, fontSize: 12 }}>Toca aquí para completar tu declaración →</p>
           </div>
         </div>
       )}
@@ -450,7 +458,7 @@ function ConectarDesktop({ facturas, setFacturas, setSyncStatus, saveFacturas })
     <div style={{ padding: "32px", overflowY: "auto", flex: 1 }}>
       <div style={{ marginBottom: 28 }}>
         <h1 style={{ color: C.text, fontSize: 24, fontWeight: 800, fontFamily: "Syne, sans-serif" }}>Conectar</h1>
-        <p style={{ color: C.textMid, fontSize: 13, marginTop: 4 }}>Sync automático cada 12 horas — o manualmente cuando quieras</p>
+        <p style={{ color: C.textMid, fontSize: 13, marginTop: 4 }}>Tus facturas llegan solas — facilito.</p>
       </div>
 
       <div style={{ maxWidth: 680, display: "flex", flexDirection: "column", gap: 16 }}>
@@ -474,7 +482,7 @@ function ConectarDesktop({ facturas, setFacturas, setSyncStatus, saveFacturas })
               </p>
 
               <p style={{ color: C.textMid, fontSize: 13, lineHeight: 1.6, marginBottom: 16 }}>
-                Lemon Tax escanea tu Gmail en segundo plano cada 12 horas buscando XMLs del SRI y los guarda automáticamente. También puedes sincronizar ahora manualmente.
+                facilito escanea tu Gmail en segundo plano cada 12 horas buscando XMLs del SRI y los guarda automáticamente. También puedes sincronizar ahora manualmente.
               </p>
 
               {/* Spinner mientras sincroniza */}
@@ -637,7 +645,7 @@ function DeclaracionDesktop({ facturas, perfil, updatePerfil, savePerfil, syncSt
   return (
     <div style={{ padding: "32px", overflowY: "auto", flex: 1 }}>
       <div style={{ marginBottom: 24 }}>
-        <h1 style={{ color: C.text, fontSize: 24, fontWeight: 800, fontFamily: "Syne, sans-serif" }}>Formularios SRI</h1>
+        <h1 style={{ color: C.text, fontSize: 24, fontWeight: 800, fontFamily: "Syne, sans-serif" }}>Tu declaración</h1>
         <p style={{ color: C.textMid, fontSize: 13, marginTop: 4 }}>Genera tu Formulario GP y Anexo de Gastos Personales</p>
       </div>
 
@@ -729,7 +737,7 @@ function DeclaracionDesktop({ facturas, perfil, updatePerfil, savePerfil, syncSt
 
             {syncStatus === "error" && (
               <div style={{ background: "#E0525215", border: `1px solid ${C.red}40`, borderRadius: 10, padding: "10px 14px", marginBottom: 12 }}>
-                <p style={{ color: C.red, fontSize: 12, fontWeight: 600 }}>⚠️ Sin conexión — conéctate para guardar</p>
+                <p style={{ color: C.red, fontSize: 12, fontWeight: 600 }}>⚠️ Sin conexión – intenta de nuevo — conéctate para guardar</p>
               </div>
             )}
             <button onClick={() => savePerfil(perfil)} disabled={syncStatus === "saving"} style={{ width: "100%", padding: "12px", background: syncStatus === "saved" ? C.greenAccent : C.yellow, color: C.green, border: "none", borderRadius: 10, fontSize: 14, fontWeight: 800, cursor: "pointer", fontFamily: "DM Sans, sans-serif" }}>
@@ -966,7 +974,7 @@ export default function LemonTaxDesktop() {
 
   if (appLoading) return (
     <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh", background: "#0D1F14", flexDirection: "column", gap: 12 }}>
-      <span style={{ fontSize: 48 }}>🍋</span>
+      <span style={{ fontSize: 48 }}>✓</span>
       <p style={{ color: "#F5E642", fontSize: 20, fontWeight: 800, fontFamily: "sans-serif" }}>Cargando...</p>
     </div>
   );
@@ -988,24 +996,32 @@ export default function LemonTaxDesktop() {
       <div style={{ width: 220, background: C.surface, borderRight: `1px solid ${C.border}`, display: "flex", flexDirection: "column", flexShrink: 0 }}>
         <div style={{ padding: "28px 24px 20px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ fontSize: 24 }}>🍋</span>
+            <svg width="30" height="30" viewBox="0 0 56 56" fill="none">
+              <rect width="56" height="56" rx="14" fill="#F5E642"/>
+              <path d="M14 28.5L23.5 38L42 19" stroke="#1A3A2A" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
             <div>
-              <p style={{ color: C.yellow, fontSize: 16, fontWeight: 800, fontFamily: "Syne, sans-serif", lineHeight: 1 }}>Lemon Tax</p>
-              <p style={{ color: C.textDim, fontSize: 10, marginTop: 2 }}>Período fiscal 2025</p>
+              <p style={{ color: C.yellow, fontSize: 16, fontWeight: 800, fontFamily: "Syne, sans-serif", lineHeight: 1 }}>facilito</p>
+              <p style={{ color: C.textDim, fontSize: 10, marginTop: 2 }}>tus impuestos, facilito</p>
             </div>
           </div>
         </div>
         <nav style={{ padding: "8px 12px", flex: 1 }}>
           {[
-            { id: "dashboard", icon: "◈", label: "Dashboard" },
-            { id: "facturas", icon: "≡", label: "Facturas" },
-            { id: "declaracion", icon: "📋", label: "Formularios SRI" },
-            { id: "conectar", icon: "⊕", label: "Conectar" },
+            { id: "dashboard", icon: "home", label: "Inicio" },
+            { id: "facturas", icon: "receipt", label: "Facturas" },
+            { id: "declaracion", icon: "check_circle", label: "Tu declaración" },
+            { id: "conectar", icon: "sync", label: "Sincronizar" },
           ].map(item => {
             const active = screen === item.id;
             return (
               <button key={item.id} onClick={() => setScreen(item.id)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 10, border: "none", cursor: "pointer", background: active ? C.yellowDim : "transparent", marginBottom: 4, transition: "all 0.15s", textAlign: "left" }}>
-                <span style={{ fontSize: 16, color: active ? C.yellow : C.textDim }}>{item.icon}</span>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" style={{flexShrink:0}}>
+              {item.icon === "home"         && <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" fill={active ? C.yellow : C.textDim}/>}
+              {item.icon === "receipt"      && <path d="M19.5 3.5L18 2l-1.5 1.5L15 2l-1.5 1.5L12 2l-1.5 1.5L9 2 7.5 3.5 6 2 4.5 3.5 3 2v20l1.5-1.5L6 22l1.5-1.5L9 22l1.5-1.5L12 22l1.5-1.5L15 22l1.5-1.5L18 22l1.5-1.5L21 22V2l-1.5 1.5z" fill={active ? C.yellow : C.textDim}/>}
+              {item.icon === "check_circle" && <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" fill={active ? C.yellow : C.textDim}/>}
+              {item.icon === "sync"         && <path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z" fill={active ? C.yellow : C.textDim}/>}
+            </svg>
                 <span style={{ fontSize: 13, fontWeight: active ? 700 : 500, color: active ? C.yellow : C.textMid, fontFamily: "DM Sans, sans-serif" }}>{item.label}</span>
                 {active && <div style={{ marginLeft: "auto", width: 4, height: 4, borderRadius: 2, background: C.yellow }} />}
               </button>
@@ -1038,16 +1054,16 @@ export default function LemonTaxDesktop() {
             {new Date().toLocaleDateString("es-EC", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
           </p>
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-            {syncStatus === "saving" && <span style={{ color: C.yellow, fontSize: 12 }}>⟳ Guardando...</span>}
-            {syncStatus === "saved" && <span style={{ color: C.greenAccent, fontSize: 12 }}>✓ Guardado</span>}
-            {syncStatus === "error" && <span style={{ color: C.red, fontSize: 12 }}>✗ Sin conexión</span>}
+            {syncStatus === "saving" && <span style={{ color: C.yellow, fontSize: 12 }}>↻ Guardando...</span>}
+            {syncStatus === "saved" && <span style={{ color: C.greenAccent, fontSize: 12 }}>Todo listo ✓</span>}
+            {syncStatus === "error" && <span style={{ color: C.red, fontSize: 12 }}>Sin conexión – intenta de nuevo</span>}
             <div style={{ width: 8, height: 8, borderRadius: 4, background: C.greenAccent }} />
-            <span style={{ color: C.textMid, fontSize: 12 }}>Conectado</span>
+            <span style={{ color: C.textMid, fontSize: 12 }}>Todo bien ✓</span>
           </div>
         </div>
 
         <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
-          {screen === "dashboard" && <DashboardDesktop facturas={facturas} perfil={perfil} navigate={setScreen} />}
+          {screen === "dashboard" && <InicioDesktop facturas={facturas} perfil={perfil} navigate={setScreen} />}
           {screen === "facturas" && <FacturasDesktop facturas={facturas} setFacturas={setFacturas} />}
           {screen === "conectar" && <ConectarDesktop facturas={facturas} setFacturas={setFacturas} setSyncStatus={setSyncStatus} saveFacturas={saveFacturas} />}
           {screen === "declaracion" && <DeclaracionDesktop facturas={facturas} perfil={perfil} updatePerfil={updatePerfil} savePerfil={savePerfil} syncStatus={syncStatus} />}
