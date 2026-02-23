@@ -306,9 +306,10 @@ function FacturasDesktop({ facturas, setFacturas }) {
   const total = filtered.reduce((a, b) => a + b.monto, 0);
   const deducible = filtered.filter(f => f.sri).reduce((a, b) => a + b.monto, 0);
 
-  const saveEdit = (id) => {
+  const saveEdit = async (id) => {
     setFacturas(prev => prev.map(f => f.id === id ? { ...f, categoria: editCat } : f));
     setEditingId(null);
+    await supabase.from("facturas").update({ categoria: editCat }).eq("id", id);
   };
 
   return (
