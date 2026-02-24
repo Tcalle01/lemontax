@@ -963,7 +963,7 @@ function DeclaracionDesktop({ facturas, perfil, updatePerfil, savePerfil, syncSt
             {[
               {
                 num: 1, icon: "🔑", titulo: "Ingresa al portal SRI",
-                desc: "Ve a sri.gob.ec y haz clic en "SRI en línea". Ingresa con tu número de cédula y contraseña del SRI.",
+                desc: "Ve a sri.gob.ec y haz clic en 'SRI en línea'. Ingresa con tu número de cédula y contraseña del SRI.",
                 accion: <button onClick={() => window.open("https://srienlinea.sri.gob.ec", "_blank")} style={{ padding: "9px 18px", background: C.yellow, color: C.green, border: "none", borderRadius: 9, fontSize: 12, fontWeight: 800, cursor: "pointer", fontFamily: "DM Sans, sans-serif" }}>Abrir portal SRI →</button>,
                 mockup: (
                   <div style={{ background: "#1a1a2e", borderRadius: 10, overflow: "hidden", border: `1px solid ${C.border}` }}>
