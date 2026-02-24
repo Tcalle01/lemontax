@@ -91,6 +91,37 @@ function calcRebaja(totalDeducible, salarioAnual, cargas) {
 
 function fmt(n) { return `$${n.toLocaleString("es-EC", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`; }
 
+function generarXMLSRI({ perfil, catTotals }) {
+  const año = new Date().getFullYear() - 1;
+  const f2 = (n) => (n || 0).toFixed(2);
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<!-- Generado por facilito · Referencia para Formulario 102A en sri.gob.ec -->
+<GastosPersonalesAnuales año="${año}">
+  <Contribuyente>
+    <Cedula>${perfil.cedula || ""}</Cedula>
+    <Nombre>${perfil.nombre || ""}</Nombre>
+  </Contribuyente>
+  <Campos>
+    <Campo id="106" concepto="Vivienda">${f2((catTotals["Vivienda"] || 0) * 12)}</Campo>
+    <Campo id="107" concepto="Educacion">${f2((catTotals["Educación"] || 0) * 12)}</Campo>
+    <Campo id="108" concepto="Salud">${f2((catTotals["Salud"] || 0) * 12)}</Campo>
+    <Campo id="109" concepto="Vestimenta">${f2((catTotals["Vestimenta"] || 0) * 12)}</Campo>
+    <Campo id="110" concepto="Alimentacion">${f2((catTotals["Alimentación"] || 0) * 12)}</Campo>
+    <Campo id="111" concepto="Turismo">${f2((catTotals["Turismo"] || 0) * 12)}</Campo>
+    <Campo id="112" concepto="Total">${f2(Object.values(catTotals).reduce((a, b) => a + b, 0) * 12)}</Campo>
+  </Campos>
+</GastosPersonalesAnuales>`;
+  const blob = new Blob([xml], { type: "application/xml;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `facilito_gastos_${año}.xml`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 // ─── Micro components ─────────────────────────────────────────────────────────
 function Badge({ children, color }) {
   return (
@@ -665,7 +696,7 @@ function DeclaracionDesktop({ facturas, perfil, updatePerfil, savePerfil, syncSt
 
       {/* Tabs */}
       <div style={{ display: "flex", gap: 4, marginBottom: 20, background: C.surface, padding: 4, borderRadius: 12, width: "fit-content", border: `1px solid ${C.border}` }}>
-        {[{ id: "perfil", label: "👤 Perfil" }, { id: "gp", label: "📋 Formulario GP" }, { id: "anexo", label: "📄 Anexo GSP" }].map(t => (
+        {[{ id: "perfil", label: "👤 Perfil" }, { id: "gp", label: "📋 Formulario GP" }, { id: "anexo", label: "📄 Anexo GSP" }, { id: "guia", label: "📖 Cómo declarar" }].map(t => (
           <button key={t.id} onClick={() => setTab(t.id)} style={{ padding: "8px 18px", borderRadius: 9, border: "none", cursor: "pointer", fontSize: 13, fontWeight: 600, background: tab === t.id ? C.yellow : "transparent", color: tab === t.id ? C.green : C.textMid, transition: "all 0.15s", fontFamily: "DM Sans, sans-serif" }}>{t.label}</button>
         ))}
       </div>
@@ -864,6 +895,208 @@ function DeclaracionDesktop({ facturas, perfil, updatePerfil, savePerfil, syncSt
             </button>
           </div>
           {!perfilValido && <p style={{ color: C.textDim, fontSize: 12, marginTop: 8 }}>Completa tu perfil primero</p>}
+        </div>
+      )}
+
+      {/* ── Guía paso a paso ── */}
+      {tab === "guia" && (
+        <div style={{ maxWidth: 820 }}>
+          <div style={{ marginBottom: 28 }}>
+            <p style={{ color: C.yellow, fontFamily: "Syne, sans-serif", fontSize: 22, fontWeight: 800 }}>Tu declaración, facilito.</p>
+            <p style={{ color: C.textMid, fontSize: 13, marginTop: 6 }}>Sigue estos pasos para declarar en el portal del SRI. Tienes todo listo — solo necesitas 15 minutos.</p>
+          </div>
+
+          {/* Descarga de referencia */}
+          <div style={{ background: C.yellowDim, border: `1px solid ${C.yellow}40`, borderRadius: 14, padding: "18px 22px", marginBottom: 28, display: "flex", alignItems: "center", gap: 16 }}>
+            <span style={{ fontSize: 28 }}>📦</span>
+            <div style={{ flex: 1 }}>
+              <p style={{ color: C.yellow, fontSize: 14, fontWeight: 700 }}>Descarga tu archivo de referencia</p>
+              <p style={{ color: C.yellow, opacity: 0.7, fontSize: 12, marginTop: 2 }}>Un XML con todos tus totales por categoría y campo del formulario</p>
+            </div>
+            <button
+              onClick={() => generarXMLSRI({ perfil, catTotals })}
+              style={{ padding: "10px 20px", background: C.yellow, color: C.green, border: "none", borderRadius: 10, fontSize: 13, fontWeight: 800, cursor: "pointer", fontFamily: "DM Sans, sans-serif", whiteSpace: "nowrap" }}>
+              ⬇️ Descargar XML
+            </button>
+          </div>
+
+          {/* Valores a ingresar — referencia rápida */}
+          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, overflow: "hidden", marginBottom: 28 }}>
+            <div style={{ padding: "14px 20px", background: C.surface, borderBottom: `1px solid ${C.border}` }}>
+              <p style={{ color: C.text, fontSize: 13, fontWeight: 700 }}>📊 Valores que debes ingresar en el formulario</p>
+              <p style={{ color: C.textDim, fontSize: 11, marginTop: 2 }}>Gastos proyectados anuales (tu mes × 12)</p>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "40px 1fr auto auto", gap: 0 }}>
+              <div style={{ display: "contents" }}>
+                <div style={{ padding: "8px 12px", background: C.surface, borderBottom: `1px solid ${C.border}` }}><p style={{ color: C.textDim, fontSize: 10, fontWeight: 700, textTransform: "uppercase" }}>Campo</p></div>
+                <div style={{ padding: "8px 12px", background: C.surface, borderBottom: `1px solid ${C.border}` }}><p style={{ color: C.textDim, fontSize: 10, fontWeight: 700, textTransform: "uppercase" }}>Categoría</p></div>
+                <div style={{ padding: "8px 12px", background: C.surface, borderBottom: `1px solid ${C.border}` }}><p style={{ color: C.textDim, fontSize: 10, fontWeight: 700, textTransform: "uppercase" }}>Mensual</p></div>
+                <div style={{ padding: "8px 12px", background: C.surface, borderBottom: `1px solid ${C.border}`, paddingRight: 20 }}><p style={{ color: C.textDim, fontSize: 10, fontWeight: 700, textTransform: "uppercase" }}>Anual (× 12)</p></div>
+              </div>
+              {Object.entries(CAT_SRI).map(([cat, { field }], i, arr) => (
+                <div key={cat} style={{ display: "contents" }}>
+                  <div style={{ padding: "11px 12px", borderBottom: i < arr.length - 1 ? `1px solid ${C.border}` : "none", display: "flex", alignItems: "center" }}>
+                    <span style={{ fontSize: 10, background: (catColors[cat] || "#ccc") + "20", color: catColors[cat] || "#ccc", padding: "2px 5px", borderRadius: 4, fontWeight: 700 }}>{field}</span>
+                  </div>
+                  <div style={{ padding: "11px 12px", borderBottom: i < arr.length - 1 ? `1px solid ${C.border}` : "none", display: "flex", alignItems: "center", gap: 6 }}>
+                    <span style={{ fontSize: 13 }}>{catIcons[cat]}</span>
+                    <span style={{ color: C.text, fontSize: 13 }}>{cat}</span>
+                  </div>
+                  <div style={{ padding: "11px 12px", borderBottom: i < arr.length - 1 ? `1px solid ${C.border}` : "none", display: "flex", alignItems: "center" }}>
+                    <span style={{ color: C.textMid, fontSize: 13 }}>{fmt(catTotals[cat] || 0)}</span>
+                  </div>
+                  <div style={{ padding: "11px 20px 11px 12px", borderBottom: i < arr.length - 1 ? `1px solid ${C.border}` : "none", display: "flex", alignItems: "center" }}>
+                    <span style={{ color: C.text, fontSize: 13, fontWeight: 700 }}>{fmt((catTotals[cat] || 0) * 12)}</span>
+                  </div>
+                </div>
+              ))}
+              <div style={{ display: "contents" }}>
+                <div style={{ gridColumn: "1 / 3", padding: "12px 20px", background: C.greenMid }}><span style={{ color: "rgba(255,255,255,0.7)", fontSize: 13, fontWeight: 600 }}>Campo 112 · Total gastos proyectados</span></div>
+                <div style={{ padding: "12px 12px", background: C.greenMid }}><span style={{ color: C.yellow, fontSize: 14, fontWeight: 800 }}>{fmt(totalDeducible)}</span></div>
+                <div style={{ padding: "12px 20px 12px 12px", background: C.greenMid }}><span style={{ color: C.yellow, fontSize: 14, fontWeight: 800 }}>{fmt(totalDeducible * 12)}</span></div>
+              </div>
+            </div>
+          </div>
+
+          {/* Pasos */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+            {[
+              {
+                num: 1, icon: "🔑", titulo: "Ingresa al portal SRI",
+                desc: "Ve a sri.gob.ec y haz clic en "SRI en línea". Ingresa con tu número de cédula y contraseña del SRI.",
+                accion: <button onClick={() => window.open("https://srienlinea.sri.gob.ec", "_blank")} style={{ padding: "9px 18px", background: C.yellow, color: C.green, border: "none", borderRadius: 9, fontSize: 12, fontWeight: 800, cursor: "pointer", fontFamily: "DM Sans, sans-serif" }}>Abrir portal SRI →</button>,
+                mockup: (
+                  <div style={{ background: "#1a1a2e", borderRadius: 10, overflow: "hidden", border: `1px solid ${C.border}` }}>
+                    <div style={{ background: "#16213e", padding: "8px 12px", display: "flex", alignItems: "center", gap: 6 }}>
+                      <div style={{ width: 8, height: 8, borderRadius: 4, background: "#ff5f57" }} />
+                      <div style={{ width: 8, height: 8, borderRadius: 4, background: "#febc2e" }} />
+                      <div style={{ width: 8, height: 8, borderRadius: 4, background: "#28c840" }} />
+                      <div style={{ flex: 1, background: "#0d1117", borderRadius: 4, padding: "3px 10px", marginLeft: 6 }}>
+                        <p style={{ color: "#58a6ff", fontSize: 10, fontFamily: "monospace" }}>srienlinea.sri.gob.ec</p>
+                      </div>
+                    </div>
+                    <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: 8 }}>
+                      <div style={{ background: "#0e4d8a", borderRadius: 6, padding: "10px", textAlign: "center" }}>
+                        <p style={{ color: "#fff", fontSize: 11, fontWeight: 700 }}>SRI en línea</p>
+                        <p style={{ color: "#aac", fontSize: 9, marginTop: 2 }}>Servicio de Rentas Internas</p>
+                      </div>
+                      <div style={{ background: "#0d1117", borderRadius: 5, padding: "7px 10px" }}>
+                        <p style={{ color: "#8b949e", fontSize: 9 }}>Número de cédula</p>
+                        <p style={{ color: "#c9d1d9", fontSize: 11, marginTop: 2 }}>1700000000</p>
+                      </div>
+                      <div style={{ background: "#0d1117", borderRadius: 5, padding: "7px 10px" }}>
+                        <p style={{ color: "#8b949e", fontSize: 9 }}>Contraseña</p>
+                        <p style={{ color: "#c9d1d9", fontSize: 11, marginTop: 2 }}>••••••••</p>
+                      </div>
+                      <div style={{ background: "#1158c7", borderRadius: 5, padding: "7px", textAlign: "center" }}>
+                        <p style={{ color: "#fff", fontSize: 10, fontWeight: 700 }}>Ingresar</p>
+                      </div>
+                    </div>
+                  </div>
+                ),
+              },
+              {
+                num: 2, icon: "📋", titulo: "Navega a Declaraciones → Formulario 102A",
+                desc: 'En el menú principal selecciona "Mis Declaraciones" → "Impuesto a la Renta" → "Formulario 102A". Selecciona el período fiscal.',
+                mockup: (
+                  <div style={{ background: "#1a1a2e", borderRadius: 10, overflow: "hidden", border: `1px solid ${C.border}` }}>
+                    <div style={{ background: "#16213e", padding: "8px 12px", display: "flex", gap: 6, alignItems: "center" }}>
+                      <div style={{ width: 8, height: 8, borderRadius: 4, background: "#ff5f57" }} />
+                      <div style={{ width: 8, height: 8, borderRadius: 4, background: "#febc2e" }} />
+                      <div style={{ width: 8, height: 8, borderRadius: 4, background: "#28c840" }} />
+                    </div>
+                    <div style={{ display: "flex", height: 100 }}>
+                      <div style={{ width: 100, background: "#0e2b4a", padding: "8px" }}>
+                        {["Inicio", "Mis datos", "Mis declaraciones ▶", "Mis pagos"].map((m, i) => (
+                          <div key={i} style={{ padding: "4px 6px", borderRadius: 4, marginBottom: 2, background: m.includes("declaraciones") ? "#1158c7" : "transparent" }}>
+                            <p style={{ color: m.includes("declaraciones") ? "#fff" : "#8b949e", fontSize: 9 }}>{m}</p>
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{ flex: 1, padding: "8px" }}>
+                        {["Formulario 101", "Formulario 102A ◄", "Formulario 103", "Formulario 104"].map((f, i) => (
+                          <div key={i} style={{ padding: "4px 8px", borderRadius: 4, marginBottom: 2, background: f.includes("102A") ? "#1158c710" : "transparent", border: f.includes("102A") ? "1px solid #1158c7" : "1px solid transparent" }}>
+                            <p style={{ color: f.includes("102A") ? "#58a6ff" : "#8b949e", fontSize: 9, fontWeight: f.includes("102A") ? 700 : 400 }}>{f}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ),
+              },
+              {
+                num: 3, icon: "✏️", titulo: "Ingresa los gastos personales",
+                desc: 'Busca la sección "Gastos Personales Proyectados". Ingresa los valores anuales de la tabla de arriba en los campos 106 al 112. El sistema calculará automáticamente tu rebaja.',
+                mockup: (
+                  <div style={{ background: "#1a1a2e", borderRadius: 10, overflow: "hidden", border: `1px solid ${C.border}`, padding: "12px" }}>
+                    <p style={{ color: "#8b949e", fontSize: 9, marginBottom: 8, fontWeight: 700, textTransform: "uppercase" }}>Gastos Personales Proyectados</p>
+                    {[
+                      ["106", "Vivienda", catTotals["Vivienda"] || 0],
+                      ["107", "Educación", catTotals["Educación"] || 0],
+                      ["108", "Salud", catTotals["Salud"] || 0],
+                      ["109", "Vestimenta", catTotals["Vestimenta"] || 0],
+                      ["110", "Alimentación", catTotals["Alimentación"] || 0],
+                    ].map(([campo, label, val]) => (
+                      <div key={campo} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 5 }}>
+                        <span style={{ fontSize: 8, color: "#58a6ff", fontWeight: 700, width: 20 }}>{campo}</span>
+                        <span style={{ color: "#8b949e", fontSize: 9, flex: 1 }}>{label}</span>
+                        <div style={{ background: "#0d1117", border: "1px solid #30363d", borderRadius: 3, padding: "2px 8px", minWidth: 60, textAlign: "right" }}>
+                          <p style={{ color: val > 0 ? "#3fb950" : "#8b949e", fontSize: 9, fontFamily: "monospace" }}>{(val * 12).toFixed(2)}</p>
+                        </div>
+                      </div>
+                    ))}
+                    <div style={{ borderTop: "1px solid #30363d", marginTop: 6, paddingTop: 6, display: "flex", justifyContent: "space-between" }}>
+                      <span style={{ color: "#f0f6fc", fontSize: 9, fontWeight: 700 }}>112 · Total</span>
+                      <span style={{ color: "#f0f6fc", fontSize: 9, fontWeight: 700, fontFamily: "monospace" }}>{(totalDeducible * 12).toFixed(2)}</span>
+                    </div>
+                  </div>
+                ),
+              },
+              {
+                num: 4, icon: "🚀", titulo: "Revisa, firma y envía",
+                desc: 'Verifica que los valores sean correctos. Haz clic en "Firmar y Enviar". Descarga el comprobante de presentación — guárdalo como respaldo.',
+                mockup: (
+                  <div style={{ background: "#1a1a2e", borderRadius: 10, border: `1px solid ${C.border}`, padding: "16px", display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+                    <div style={{ width: 40, height: 40, borderRadius: 20, background: "#238636", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>✓</div>
+                    <p style={{ color: "#3fb950", fontSize: 11, fontWeight: 700 }}>Declaración enviada</p>
+                    <p style={{ color: "#8b949e", fontSize: 9, textAlign: "center" }}>Número de formulario: 102A-2025-XXXXXXXX</p>
+                    <div style={{ background: "#238636", borderRadius: 5, padding: "5px 14px", cursor: "pointer" }}>
+                      <p style={{ color: "#fff", fontSize: 9, fontWeight: 700 }}>⬇️ Descargar comprobante</p>
+                    </div>
+                  </div>
+                ),
+              },
+            ].map((paso, idx, arr) => (
+              <div key={paso.num} style={{ display: "flex", gap: 0 }}>
+                {/* Línea vertical izquierda */}
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: 48, flexShrink: 0 }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 18, background: C.yellow, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 14, color: C.green, fontFamily: "Syne, sans-serif", flexShrink: 0, zIndex: 1 }}>{paso.num}</div>
+                  {idx < arr.length - 1 && <div style={{ width: 2, flex: 1, background: C.border, margin: "4px 0", minHeight: 24 }} />}
+                </div>
+                {/* Contenido */}
+                <div style={{ flex: 1, paddingBottom: idx < arr.length - 1 ? 24 : 0, paddingLeft: 16 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 220px", gap: 16, alignItems: "start" }}>
+                    <div>
+                      <p style={{ color: C.text, fontSize: 15, fontWeight: 700, marginBottom: 6, display: "flex", alignItems: "center", gap: 8 }}>
+                        <span>{paso.icon}</span> {paso.titulo}
+                      </p>
+                      <p style={{ color: C.textMid, fontSize: 13, lineHeight: 1.6, marginBottom: paso.accion ? 12 : 0 }}>{paso.desc}</p>
+                      {paso.accion}
+                    </div>
+                    <div>{paso.mockup}</div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Tip final */}
+          <div style={{ marginTop: 28, background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: "14px 18px", display: "flex", gap: 12, alignItems: "center" }}>
+            <span style={{ fontSize: 18 }}>💡</span>
+            <p style={{ color: C.textMid, fontSize: 12, lineHeight: 1.6 }}>
+              <strong style={{ color: C.text }}>Tip:</strong> Si el portal SRI no te permite ingresar valores decimales, redondea al número entero más cercano. El sistema acepta ambos formatos.
+            </p>
+          </div>
         </div>
       )}
     </div>
