@@ -91,31 +91,34 @@ function calcRebaja(totalDeducible, salarioAnual, cargas) {
 
 function fmt(n) { return `$${n.toLocaleString("es-EC", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`; }
 
-function generarXMLSRI({ perfil, catTotals }) {
+function generarJSONSRI({ perfil, catTotals }) {
   const año = new Date().getFullYear() - 1;
-  const f2 = (n) => (n || 0).toFixed(2);
-  const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<!-- Generado por facilito · Referencia para Formulario 102A en sri.gob.ec -->
-<GastosPersonalesAnuales año="${año}">
-  <Contribuyente>
-    <Cedula>${perfil.cedula || ""}</Cedula>
-    <Nombre>${perfil.nombre || ""}</Nombre>
-  </Contribuyente>
-  <Campos>
-    <Campo id="106" concepto="Vivienda">${f2((catTotals["Vivienda"] || 0) * 12)}</Campo>
-    <Campo id="107" concepto="Educacion">${f2((catTotals["Educación"] || 0) * 12)}</Campo>
-    <Campo id="108" concepto="Salud">${f2((catTotals["Salud"] || 0) * 12)}</Campo>
-    <Campo id="109" concepto="Vestimenta">${f2((catTotals["Vestimenta"] || 0) * 12)}</Campo>
-    <Campo id="110" concepto="Alimentacion">${f2((catTotals["Alimentación"] || 0) * 12)}</Campo>
-    <Campo id="111" concepto="Turismo">${f2((catTotals["Turismo"] || 0) * 12)}</Campo>
-    <Campo id="112" concepto="Total">${f2(Object.values(catTotals).reduce((a, b) => a + b, 0) * 12)}</Campo>
-  </Campos>
-</GastosPersonalesAnuales>`;
-  const blob = new Blob([xml], { type: "application/xml;charset=utf-8" });
+  const f2 = (n) => parseFloat((n || 0).toFixed(2));
+  const total = f2(Object.values(catTotals).reduce((a, b) => a + b, 0) * 12);
+  const json = {
+    declaracion: {
+      formCodigo: "102A",
+      periodoFiscal: String(año),
+      contribuyente: {
+        identificacion: perfil.cedula || "",
+        nombres: perfil.nombre || "",
+      },
+      gastosPersonalesProyectados: {
+        campo106_vivienda:      f2((catTotals["Vivienda"]     || 0) * 12),
+        campo107_educacion:     f2((catTotals["Educación"]    || 0) * 12),
+        campo108_salud:         f2((catTotals["Salud"]        || 0) * 12),
+        campo109_vestimenta:    f2((catTotals["Vestimenta"]   || 0) * 12),
+        campo110_alimentacion:  f2((catTotals["Alimentación"] || 0) * 12),
+        campo111_turismo:       f2((catTotals["Turismo"]      || 0) * 12),
+        campo112_total:         total,
+      },
+    },
+  };
+  const blob = new Blob([JSON.stringify(json, null, 2)], { type: "application/json;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `facilito_gastos_${año}.xml`;
+  a.download = `facilito_gastos_${año}.json`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -914,9 +917,9 @@ function DeclaracionDesktop({ facturas, perfil, updatePerfil, savePerfil, syncSt
               <p style={{ color: C.yellow, opacity: 0.7, fontSize: 12, marginTop: 2 }}>Un XML con todos tus totales por categoría y campo del formulario</p>
             </div>
             <button
-              onClick={() => generarXMLSRI({ perfil, catTotals })}
+              onClick={() => generarJSONSRI({ perfil, catTotals })}
               style={{ padding: "10px 20px", background: C.yellow, color: C.green, border: "none", borderRadius: 10, fontSize: 13, fontWeight: 800, cursor: "pointer", fontFamily: "DM Sans, sans-serif", whiteSpace: "nowrap" }}>
-              ⬇️ Descargar XML
+              ⬇️ Descargar JSON
             </button>
           </div>
 
