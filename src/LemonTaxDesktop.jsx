@@ -91,29 +91,28 @@ function calcRebaja(totalDeducible, salarioAnual, cargas) {
 
 function fmt(n) { return `$${n.toLocaleString("es-EC", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`; }
 
-function generarJSONSRI({ perfil, catTotals }) {
+function generarJSONSRI({ catTotals }) {
   const año = new Date().getFullYear() - 1;
-  const f2 = (n) => parseFloat((n || 0).toFixed(2));
-  const total = f2(Object.values(catTotals).reduce((a, b) => a + b, 0) * 12);
-  const json = {
-    declaracion: {
-      formCodigo: "102A",
-      periodoFiscal: String(año),
-      contribuyente: {
-        identificacion: perfil.cedula || "",
-        nombres: perfil.nombre || "",
-      },
-      gastosPersonalesProyectados: {
-        campo106_vivienda:      f2((catTotals["Vivienda"]     || 0) * 12),
-        campo107_educacion:     f2((catTotals["Educación"]    || 0) * 12),
-        campo108_salud:         f2((catTotals["Salud"]        || 0) * 12),
-        campo109_vestimenta:    f2((catTotals["Vestimenta"]   || 0) * 12),
-        campo110_alimentacion:  f2((catTotals["Alimentación"] || 0) * 12),
-        campo111_turismo:       f2((catTotals["Turismo"]      || 0) * 12),
-        campo112_total:         total,
-      },
-    },
+  // Números de concepto según Tabla 1 de la guía SRI (Casillero → Concepto)
+  const CONCEPTOS = {
+    "Vivienda":     "3310",
+    "Educación":    "5040",
+    "Salud":        "3290",
+    "Vestimenta":   "3320",
+    "Alimentación": "3300",
+    "Turismo":      "3325",
   };
+  const detalles = {};
+  let total = 0;
+  for (const [cat, concepto] of Object.entries(CONCEPTOS)) {
+    const anual = (catTotals[cat] || 0) * 12;
+    if (anual > 0) {
+      detalles[concepto] = String(parseFloat(anual.toFixed(2)));
+      total += anual;
+    }
+  }
+  if (total > 0) detalles["3330"] = String(parseFloat(total.toFixed(2)));
+  const json = { detallesDeclaracion: detalles };
   const blob = new Blob([JSON.stringify(json, null, 2)], { type: "application/json;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -914,7 +913,7 @@ function DeclaracionDesktop({ facturas, perfil, updatePerfil, savePerfil, syncSt
             <span style={{ fontSize: 28 }}>📦</span>
             <div style={{ flex: 1 }}>
               <p style={{ color: C.yellow, fontSize: 14, fontWeight: 700 }}>Descarga tu archivo de referencia</p>
-              <p style={{ color: C.yellow, opacity: 0.7, fontSize: 12, marginTop: 2 }}>Un XML con todos tus totales por categoría y campo del formulario</p>
+              <p style={{ color: C.yellow, opacity: 0.7, fontSize: 12, marginTop: 2 }}>JSON con los conceptos del SRI (casilleros 773-797) listos para subir al portal</p>
             </div>
             <button
               onClick={() => generarJSONSRI({ perfil, catTotals })}
