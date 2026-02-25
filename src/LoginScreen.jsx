@@ -3,9 +3,11 @@ import { useState } from "react";
 import { useAuth } from "./auth";
 
 const C = {
-  bg: "#0D1F14", surface: "#132218", card: "#1A2E20", border: "#243B2A",
-  green: "#1A3A2A", greenAccent: "#4CAF82", yellow: "#F5E642", yellowDim: "#F5E64230",
-  white: "#FFFFFF", text: "#E8F0EA", textMid: "#8FA894", textDim: "#4A6350", red: "#E05252",
+  bg: "#FFFFFF", surface: "#F7FAF8", card: "#FFFFFF", border: "#E0E8E2",
+  green: "#1A3A2A", greenMid: "#2D5A3D", greenAccent: "#4CAF82",
+  yellow: "#F5E642", yellowDim: "#F5E64230",
+  white: "#FFFFFF", text: "#1A2E20", textMid: "#5A7A64", textDim: "#8FA894",
+  red: "#E05252", blue: "#52A8E0",
 };
 
 // Logo SVG — checkmark redondeado
@@ -15,6 +17,14 @@ function FacilitoLogo({ size = 56 }) {
       <rect width="56" height="56" rx="16" fill="#F5E642"/>
       <path d="M14 28.5L23.5 38L42 19" stroke="#1A3A2A" strokeWidth="4.5" strokeLinecap="round" strokeLinejoin="round"/>
     </svg>
+  );
+}
+
+function Icon({ name, color, size = 20 }) {
+  return (
+    <span className="material-symbols-outlined" style={{ fontSize: size, color: color || C.green, verticalAlign: "middle", lineHeight: 1 }}>
+      {name}
+    </span>
   );
 }
 
@@ -67,7 +77,7 @@ function OnboardingStep({ step, onNext }) {
       {/* Dots */}
       <div style={{ display: "flex", justifyContent: "center", gap: 6, marginBottom: 28 }}>
         {[0,1,2].map(i => (
-          <div key={i} style={{ width: i === step ? 20 : 6, height: 6, borderRadius: 3, background: i === step ? C.yellow : C.border, transition: "all 0.3s" }} />
+          <div key={i} style={{ width: i === step ? 20 : 6, height: 6, borderRadius: 3, background: i === step ? C.green : C.border, transition: "all 0.3s" }} />
         ))}
       </div>
       <button onClick={onNext} style={{
@@ -101,7 +111,7 @@ export default function LoginScreen() {
     setError(null);
     try {
       await loginConGoogle();
-    } catch (e) {
+    } catch {
       setError("No se pudo conectar. Intenta de nuevo.");
       setLoading(false);
     }
@@ -126,7 +136,7 @@ export default function LoginScreen() {
           <div style={{ display: "flex", justifyContent: "center", marginBottom: 14 }}>
             <FacilitoLogo size={52} />
           </div>
-          <h1 style={{ color: C.yellow, fontSize: 30, fontWeight: 800, fontFamily: "Syne, sans-serif", lineHeight: 1 }}>
+          <h1 style={{ color: C.green, fontSize: 30, fontWeight: 800, fontFamily: "Syne, sans-serif", lineHeight: 1 }}>
             facilito
           </h1>
           <p style={{ color: C.textDim, fontSize: 13, marginTop: 6 }}>
@@ -135,7 +145,7 @@ export default function LoginScreen() {
         </div>
 
         {/* Card */}
-        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 20, padding: 32 }}>
+        <div style={{ background: C.white, border: `1px solid ${C.border}`, borderRadius: 20, padding: 32, boxShadow: "0 4px 24px rgba(0,0,0,0.06)" }}>
           {!showLogin ? (
             <OnboardingStep step={onboardingStep} onNext={handleOnboardingNext} />
           ) : (
@@ -148,8 +158,9 @@ export default function LoginScreen() {
               </p>
 
               {error && (
-                <div style={{ background: C.red + "15", border: `1px solid ${C.red}30`, borderRadius: 10, padding: "12px 16px", marginBottom: 16 }}>
-                  <p style={{ color: C.red, fontSize: 13 }}>⚠️ {error}</p>
+                <div style={{ background: C.red + "15", border: `1px solid ${C.red}30`, borderRadius: 10, padding: "12px 16px", marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
+                  <Icon name="warning" color={C.red} size={18} />
+                  <p style={{ color: C.red, fontSize: 13 }}>{error}</p>
                 </div>
               )}
 
@@ -157,10 +168,11 @@ export default function LoginScreen() {
                 width: "100%", padding: "14px 20px",
                 background: loading ? C.border : C.white,
                 color: loading ? C.textDim : "#1A1A1A",
-                border: "none", borderRadius: 12, fontSize: 15, fontWeight: 700,
+                border: `1px solid ${C.border}`, borderRadius: 12, fontSize: 15, fontWeight: 700,
                 cursor: loading ? "not-allowed" : "pointer",
                 display: "flex", alignItems: "center", justifyContent: "center", gap: 12,
                 fontFamily: "DM Sans, sans-serif", marginBottom: 20,
+                boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
               }}>
                 {!loading && (
                   <svg width="20" height="20" viewBox="0 0 24 24">

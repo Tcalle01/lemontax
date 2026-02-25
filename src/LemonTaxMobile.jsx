@@ -7,10 +7,12 @@ const COLORS = {
   green: "#1A3A2A",
   yellow: "#F5E642",
   white: "#FFFFFF",
-  offWhite: "#F9F9F3",
-  gray: "#8A9A8E",
-  grayLight: "#EEF2EE",
+  offWhite: "#F7FAF8",
+  gray: "#5A7A64",
+  grayLight: "#E0E8E2",
   greenAccent: "#4CAF82",
+  greenMid: "#2D5A3D",
+  border: "#E0E8E2",
 };
 
 const categoriaColors = {
@@ -26,17 +28,17 @@ const categoriaColors = {
   "Otros": "#90A4AE",
 };
 
-const categoriaIcons = {
-  "Alimentación": "🛒",
-  "Salud": "💊",
-  "Servicios": "📱",
-  "Educación": "📚",
-  "Entretenimiento": "🎬",
-  "Transporte": "⛽",
-  "Vivienda": "🏠",
-  "Vestimenta": "👕",
-  "Turismo": "✈️",
-  "Otros": "📋",
+const catIcons = {
+  "Alimentación": "shopping_cart",
+  "Salud": "medication",
+  "Servicios": "phone_iphone",
+  "Educación": "school",
+  "Entretenimiento": "movie",
+  "Transporte": "local_gas_station",
+  "Vivienda": "home",
+  "Vestimenta": "checkroom",
+  "Turismo": "flight",
+  "Otros": "receipt_long",
 };
 
 // SRI categories that map to GP form fields
@@ -51,20 +53,18 @@ const CAT_SRI = {
 
 const CANASTA = 821.80; // SRI 2026 value
 
-const initialFacturas = [
-  { id: 1, emisor: "Supermaxi", ruc: "1790000000001", fecha: "18 Feb", monto: 47.80, categoria: "Alimentación", sri: true, comprobantes: 2 },
-  { id: 2, emisor: "Farmacia Cruz Azul", ruc: "1780000000001", fecha: "16 Feb", monto: 23.50, categoria: "Salud", sri: true, comprobantes: 1 },
-  { id: 3, emisor: "Claro Ecuador", ruc: "1790000000002", fecha: "14 Feb", monto: 35.00, categoria: "Servicios", sri: true, comprobantes: 1 },
-  { id: 4, emisor: "Librería Española", ruc: "1690000000001", fecha: "12 Feb", monto: 18.90, categoria: "Educación", sri: true, comprobantes: 3 },
-  { id: 5, emisor: "Netflix Ecuador", ruc: "1790000000003", fecha: "10 Feb", monto: 12.99, categoria: "Entretenimiento", sri: false, comprobantes: 1 },
-  { id: 6, emisor: "Shell Gasolinera", ruc: "0980000000001", fecha: "8 Feb", monto: 55.00, categoria: "Transporte", sri: true, comprobantes: 1 },
-];
-
 const CATEGORIAS = ["Alimentación", "Salud", "Educación", "Vivienda", "Vestimenta", "Turismo", "Otros"];
+
+function Icon({ name, color, size = 20, style: extra }) {
+  return (
+    <span className="material-symbols-outlined" style={{ fontSize: size, color: color || COLORS.green, verticalAlign: "middle", lineHeight: 1, ...extra }}>
+      {name}
+    </span>
+  );
+}
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 function calcLimiteGP(salarioAnual, cargas) {
-  // Tabla SRI: límite de deducción = canastas según cargas
   const canastas = [7, 9, 11, 14, 17, 20][Math.min(cargas, 5)];
   const limiteMaximo = CANASTA * canastas;
   const limitePorc = salarioAnual * 0.20;
@@ -74,7 +74,6 @@ function calcLimiteGP(salarioAnual, cargas) {
 function calcRebaja(totalDeducible, salarioAnual, cargas) {
   const limite = calcLimiteGP(salarioAnual, cargas);
   const deducibleEfectivo = Math.min(totalDeducible, limite);
-  // IR table 2026 Ecuador - simplified calculation
   if (salarioAnual <= 11902) return 0;
   let ir = 0;
   const tramos = [
@@ -144,7 +143,7 @@ function GreenBtn({ children, onClick, outline, small, disabled }) {
 export default function LemonTax() {
   const { user } = useAuth();
   const [screen, setScreen] = useState("dashboard");
-  const [facturas, setFacturas] = useState(initialFacturas);
+  const [facturas, setFacturas] = useState([]);
   const [perfil, setPerfil] = useState({ cedula: "", nombre: "", salario: "", cargas: "0", enfermedadCatastrofica: false });
   const [appLoading, setAppLoading] = useState(true);
   const [syncStatus, setSyncStatus] = useState("idle");
@@ -176,7 +175,7 @@ export default function LemonTax() {
             _id: perfilData.id,
           });
         }
-      } catch (e) {
+      } catch {
         console.log("Usando datos locales");
       }
       setAppLoading(false);
@@ -209,7 +208,7 @@ export default function LemonTax() {
       }
       setSyncStatus("saved");
       setTimeout(() => setSyncStatus("idle"), 2000);
-    } catch (e) {
+    } catch {
       setSyncStatus("error");
     }
   }, [user]);
@@ -222,10 +221,9 @@ export default function LemonTax() {
       await supabase.from("facturas").update({ categoria: cat }).eq("id", id);
       setSyncStatus("saved");
       setTimeout(() => setSyncStatus("idle"), 2000);
-    } catch (e) { setSyncStatus("error"); }
+    } catch { setSyncStatus("error"); }
   };
 
-  // updatePerfil only updates local state, saving happens via button
   const updatePerfil = (k, v) => setPerfil(prev => ({ ...prev, [k]: v }));
 
   const totalGastos = facturas.reduce((a, b) => a + b.monto, 0);
@@ -236,18 +234,18 @@ export default function LemonTax() {
   const limite = salarioAnual > 0 ? calcLimiteGP(salarioAnual, cargas) : 0;
 
   if (appLoading) return (
-    <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "100vh", background: "#0D1F14", flexDirection: "column", gap: 12 }}>
+    <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "100vh", background: COLORS.white, flexDirection: "column", gap: 12 }}>
       <svg width="48" height="48" viewBox="0 0 56 56" fill="none">
         <rect width="56" height="56" rx="14" fill="#F5E642"/>
         <path d="M14 28.5L23.5 38L42 19" stroke="#1A3A2A" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round"/>
       </svg>
-      <p style={{ color: "#F5E642", fontSize: 20, fontWeight: 800, fontFamily: "sans-serif" }}>facilito</p>
-      <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 12 }}>Cargando...</p>
+      <p style={{ color: COLORS.green, fontSize: 20, fontWeight: 800, fontFamily: "Syne, sans-serif" }}>facilito</p>
+      <p style={{ color: COLORS.gray, fontSize: 12 }}>Cargando...</p>
     </div>
   );
 
   return (
-    <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "100vh", background: "#0F1F15", fontFamily: "'DM Sans', sans-serif", padding: "20px" }}>
+    <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "100vh", background: "#F0F4F1", fontFamily: "'DM Sans', sans-serif", padding: "20px" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Syne:wght@700;800&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -262,14 +260,14 @@ export default function LemonTax() {
         input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
       `}</style>
 
-      <div style={{ width: 390, height: 844, background: COLORS.white, borderRadius: 44, overflow: "hidden", display: "flex", flexDirection: "column", boxShadow: "0 40px 100px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.1)" }}>
+      <div style={{ width: 390, height: 844, background: COLORS.white, borderRadius: 44, overflow: "hidden", display: "flex", flexDirection: "column", boxShadow: "0 40px 100px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.05)" }}>
         <div style={{ background: COLORS.green, padding: "14px 28px 0", display: "flex", justifyContent: "space-between", alignItems: "center", color: COLORS.white, fontSize: 12, fontWeight: 600 }}>
           <span>9:41</span>
           <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-            {syncStatus === "saving" && <span style={{ fontSize: 10, color: COLORS.yellow }} className="pulse">⟳ Guardando</span>}
-            {syncStatus === "saved" && <span style={{ fontSize: 10, color: COLORS.greenAccent }}>✓ Guardado</span>}
-            {syncStatus === "error" && <span style={{ fontSize: 10, color: "#E05252" }}>✗ Sin conexión</span>}
-            <span>WiFi</span><span>🔋</span>
+            {syncStatus === "saving" && <span style={{ fontSize: 10, color: COLORS.yellow }} className="pulse"><Icon name="sync" color={COLORS.yellow} size={10} /> Guardando</span>}
+            {syncStatus === "saved" && <span style={{ fontSize: 10, color: COLORS.greenAccent }}><Icon name="check_circle" color={COLORS.greenAccent} size={10} /> Guardado</span>}
+            {syncStatus === "error" && <span style={{ fontSize: 10, color: "#E05252" }}><Icon name="error" color="#E05252" size={10} /> Sin conexión</span>}
+            <span>WiFi</span><Icon name="battery_full" color={COLORS.white} size={16} />
           </div>
         </div>
 
@@ -280,16 +278,17 @@ export default function LemonTax() {
           {screen === "declaracion" && <DeclaracionScreen facturas={facturas} perfil={perfil} updatePerfil={updatePerfil} savePerfil={savePerfil} syncStatus={syncStatus} rebaja={rebaja} limite={limite} salarioAnual={salarioAnual} cargas={cargas} />}
         </div>
 
-        <div style={{ background: COLORS.white, borderTop: `1px solid ${COLORS.grayLight}`, padding: "12px 8px 24px", display: "flex", justifyContent: "space-around" }}>
+        {/* Tab bar - dark green */}
+        <div style={{ background: COLORS.green, padding: "10px 8px 24px", display: "flex", justifyContent: "space-around" }}>
           {[
-            { id: "dashboard", icon: "◉", label: "Inicio" },
-            { id: "facturas", icon: "≡", label: "Facturas" },
-            { id: "conectar", icon: "⊕", label: "Conectar" },
-            { id: "declaracion", icon: "⊞", label: "Declarar" },
+            { id: "dashboard", icon: "home", label: "Inicio" },
+            { id: "facturas", icon: "receipt_long", label: "Facturas" },
+            { id: "conectar", icon: "sync", label: "Conectar" },
+            { id: "declaracion", icon: "description", label: "Declarar" },
           ].map(tab => (
-            <button key={tab.id} onClick={() => setScreen(tab.id)} style={{ background: screen === tab.id ? COLORS.grayLight : "transparent", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 12, transition: "all 0.2s" }}>
-              <span style={{ fontSize: 20, color: screen === tab.id ? COLORS.green : COLORS.gray }}>{tab.icon}</span>
-              <span style={{ fontSize: 10, fontWeight: screen === tab.id ? 700 : 400, color: screen === tab.id ? COLORS.green : COLORS.gray }}>{tab.label}</span>
+            <button key={tab.id} onClick={() => setScreen(tab.id)} style={{ background: screen === tab.id ? COLORS.greenMid : "transparent", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 12, transition: "all 0.2s" }}>
+              <Icon name={tab.icon} color={screen === tab.id ? COLORS.yellow : "rgba(255,255,255,0.5)"} size={22} />
+              <span style={{ fontSize: 10, fontWeight: screen === tab.id ? 700 : 400, color: screen === tab.id ? COLORS.white : "rgba(255,255,255,0.5)" }}>{tab.label}</span>
             </button>
           ))}
         </div>
@@ -302,10 +301,10 @@ export default function LemonTax() {
 function FacturaRow({ factura, onUpdateCategoria }) {
   const [editing, setEditing] = useState(false);
   return (
-    <div style={{ background: COLORS.white, borderRadius: 14, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
+    <div style={{ background: COLORS.white, borderRadius: 14, overflow: "hidden", border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
       <div style={{ padding: "12px 16px", display: "flex", alignItems: "center", gap: 12 }}>
-        <div style={{ width: 38, height: 38, borderRadius: 10, background: (categoriaColors[factura.categoria] || "#ccc") + "20", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>
-          {categoriaIcons[factura.categoria] || "📋"}
+        <div style={{ width: 38, height: 38, borderRadius: 10, background: (categoriaColors[factura.categoria] || "#ccc") + "15", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Icon name={catIcons[factura.categoria] || "receipt_long"} color={categoriaColors[factura.categoria] || "#90A4AE"} size={20} />
         </div>
         <div style={{ flex: 1 }}>
           <p style={{ color: COLORS.green, fontSize: 13, fontWeight: 600 }}>{factura.emisor}</p>
@@ -314,10 +313,14 @@ function FacturaRow({ factura, onUpdateCategoria }) {
         <div style={{ textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
           <p style={{ color: COLORS.green, fontSize: 14, fontWeight: 700 }}>${factura.monto.toFixed(2)}</p>
           <div style={{ display: "flex", gap: 4 }}>
-            {factura.sri && <span style={{ fontSize: 9, background: "#E8F5E9", color: "#2E7D32", padding: "2px 6px", borderRadius: 4, fontWeight: 600 }}>SRI ✓</span>}
+            {factura.sri && (
+              <span style={{ fontSize: 9, background: "#E8F5E9", color: "#2E7D32", padding: "2px 6px", borderRadius: 4, fontWeight: 600, display: "flex", alignItems: "center", gap: 2 }}>
+                <Icon name="check_circle" color="#2E7D32" size={10} /> SRI
+              </span>
+            )}
             {onUpdateCategoria && (
-              <button onClick={() => setEditing(!editing)} style={{ fontSize: 9, background: editing ? COLORS.yellow : COLORS.grayLight, color: COLORS.green, padding: "2px 6px", borderRadius: 4, fontWeight: 600, border: "none", cursor: "pointer", fontFamily: "DM Sans, sans-serif" }}>
-                {editing ? "Cerrar" : "✏️ Editar"}
+              <button onClick={() => setEditing(!editing)} style={{ fontSize: 9, background: editing ? COLORS.yellow : COLORS.grayLight, color: COLORS.green, padding: "2px 6px", borderRadius: 4, fontWeight: 600, border: "none", cursor: "pointer", fontFamily: "DM Sans, sans-serif", display: "flex", alignItems: "center", gap: 2 }}>
+                <Icon name="edit" color={COLORS.green} size={10} /> {editing ? "Cerrar" : "Editar"}
               </button>
             )}
           </div>
@@ -345,6 +348,7 @@ function DashboardScreen({ navigate, facturas, total, deducible, rebaja, perfilO
 
   return (
     <div className="screen-enter" style={{ flex: 1, overflowY: "auto", background: COLORS.offWhite }}>
+      {/* Dark green header card */}
       <div style={{ background: COLORS.green, padding: "20px 24px 40px", position: "relative", overflow: "hidden" }}>
         <div style={{ position: "absolute", top: -20, right: -20, width: 120, height: 120, borderRadius: "50%", background: "rgba(245,230,66,0.08)" }} />
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
@@ -358,6 +362,7 @@ function DashboardScreen({ navigate, facturas, total, deducible, rebaja, perfilO
             <div style={{ width: 40, height: 40, borderRadius: 20, background: COLORS.yellow, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 800, color: COLORS.green, fontFamily: "Syne, sans-serif" }}>{initiales}</div>
           )}
         </div>
+        {/* Rebaja card - dark important card */}
         <div style={{ background: "rgba(255,255,255,0.08)", borderRadius: 20, padding: "20px", border: "1px solid rgba(255,255,255,0.1)" }}>
           <p style={{ color: "rgba(255,255,255,0.6)", fontSize: 11, marginBottom: 4, textTransform: "uppercase", letterSpacing: 1 }}>Estimado de rebaja IR 2025</p>
           <p style={{ color: COLORS.yellow, fontSize: 36, fontWeight: 800, fontFamily: "Syne, sans-serif" }}>${rebaja.toFixed(2)}</p>
@@ -370,11 +375,14 @@ function DashboardScreen({ navigate, facturas, total, deducible, rebaja, perfilO
       <div style={{ padding: "0 20px", marginTop: 16 }}>
         <div style={{ display: "flex", gap: 12 }}>
           {[
-            { label: "Total Gastos", value: `$${total.toFixed(2)}`, color: COLORS.green },
-            { label: "Facturas", value: `${facturas.length}`, color: COLORS.greenAccent },
+            { label: "Total Gastos", value: `$${total.toFixed(2)}`, icon: "receipt", color: COLORS.green },
+            { label: "Facturas", value: `${facturas.length}`, icon: "description", color: COLORS.greenAccent },
           ].map((s, i) => (
-            <div key={i} style={{ flex: 1, background: COLORS.white, borderRadius: 16, padding: "16px", boxShadow: "0 4px 20px rgba(0,0,0,0.06)" }}>
-              <p style={{ color: COLORS.gray, fontSize: 11, marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>{s.label}</p>
+            <div key={i} style={{ flex: 1, background: COLORS.white, borderRadius: 16, padding: "16px", border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                <Icon name={s.icon} color={COLORS.gray} size={14} />
+                <p style={{ color: COLORS.gray, fontSize: 11, textTransform: "uppercase", letterSpacing: 0.5 }}>{s.label}</p>
+              </div>
               <p style={{ color: s.color, fontSize: 22, fontWeight: 800, fontFamily: "Syne, sans-serif" }}>{s.value}</p>
             </div>
           ))}
@@ -384,7 +392,7 @@ function DashboardScreen({ navigate, facturas, total, deducible, rebaja, perfilO
       {!perfilOk && (
         <div style={{ margin: "16px 20px 0" }}>
           <div className="tap" onClick={() => navigate("declaracion")} style={{ background: COLORS.yellow, borderRadius: 16, padding: "14px 16px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }}>
-            <span style={{ fontSize: 20 }}>⚠️</span>
+            <Icon name="warning" color={COLORS.green} size={22} />
             <div>
               <p style={{ color: COLORS.green, fontSize: 13, fontWeight: 700 }}>Registra tu salario</p>
               <p style={{ color: COLORS.green, fontSize: 11, opacity: 0.7 }}>Para calcular tu rebaja de IR exacta</p>
@@ -398,13 +406,15 @@ function DashboardScreen({ navigate, facturas, total, deducible, rebaja, perfilO
         <p style={{ color: COLORS.green, fontSize: 13, fontWeight: 700, marginBottom: 12, textTransform: "uppercase", letterSpacing: 0.5 }}>Acciones rápidas</p>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           {[
-            { icon: "📧", label: "Conectar Gmail", action: "conectar", bg: "#E8F5E9" },
-            { icon: "📊", label: "Formularios SRI", action: "declaracion", bg: "#FFF9C4" },
-            { icon: "🧾", label: "Mis Facturas", action: "facturas", bg: "#E3F2FD" },
-            { icon: "📤", label: "Exportar Reporte", action: null, bg: "#F3E5F5" },
+            { icon: "mail", label: "Conectar Gmail", action: "conectar", iconColor: "#E05252" },
+            { icon: "bar_chart", label: "Formularios SRI", action: "declaracion", iconColor: "#9C52E0" },
+            { icon: "receipt_long", label: "Mis Facturas", action: "facturas", iconColor: "#52A8E0" },
+            { icon: "upload", label: "Exportar Reporte", action: null, iconColor: "#E09652" },
           ].map((a, i) => (
-            <div key={i} className="tap" onClick={() => a.action && navigate(a.action)} style={{ background: COLORS.white, borderRadius: 16, padding: "16px", boxShadow: "0 2px 12px rgba(0,0,0,0.05)", display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
-              <div style={{ width: 36, height: 36, borderRadius: 10, background: a.bg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>{a.icon}</div>
+            <div key={i} className="tap" onClick={() => a.action && navigate(a.action)} style={{ background: COLORS.white, borderRadius: 16, padding: "16px", border: `1px solid ${COLORS.border}`, boxShadow: "0 1px 4px rgba(0,0,0,0.04)", display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
+              <div style={{ width: 36, height: 36, borderRadius: 10, background: a.iconColor + "15", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Icon name={a.icon} color={a.iconColor} size={20} />
+              </div>
               <p style={{ color: COLORS.green, fontSize: 12, fontWeight: 600, lineHeight: 1.3 }}>{a.label}</p>
             </div>
           ))}
@@ -438,7 +448,7 @@ function FacturasScreen({ facturas, updateCategoria }) {
       </div>
       <div style={{ padding: "16px 20px 8px", display: "flex", gap: 8, overflowX: "auto" }}>
         {cats.map(cat => (
-          <button key={cat} onClick={() => setFilter(cat)} style={{ padding: "6px 14px", borderRadius: 20, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 600, whiteSpace: "nowrap", background: filter === cat ? COLORS.green : COLORS.white, color: filter === cat ? COLORS.white : COLORS.gray, boxShadow: "0 2px 8px rgba(0,0,0,0.06)", transition: "all 0.2s", fontFamily: "DM Sans, sans-serif" }}>{cat}</button>
+          <button key={cat} onClick={() => setFilter(cat)} style={{ padding: "6px 14px", borderRadius: 20, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 600, whiteSpace: "nowrap", background: filter === cat ? COLORS.green : COLORS.white, color: filter === cat ? COLORS.white : COLORS.gray, boxShadow: "0 1px 4px rgba(0,0,0,0.06)", transition: "all 0.2s", fontFamily: "DM Sans, sans-serif" }}>{cat}</button>
         ))}
       </div>
       <div style={{ padding: "8px 20px", display: "flex", flexDirection: "column", gap: 8 }}>
@@ -452,11 +462,10 @@ function FacturasScreen({ facturas, updateCategoria }) {
 // ── Conectar ──────────────────────────────────────────────────────────────────
 function ConectarScreen({ setSyncStatus }) {
   const { triggerSync, user } = useAuth();
-  const [estado, setEstado] = useState("idle"); // idle | syncing | success | error
+  const [estado, setEstado] = useState("idle");
   const [resultado, setResultado] = useState(null);
   const [lastSync, setLastSync] = useState(null);
 
-  // Cargar último sync real desde Supabase
   useEffect(() => {
     if (!user) return;
     supabase
@@ -467,9 +476,10 @@ function ConectarScreen({ setSyncStatus }) {
       .then(({ data }) => { if (data?.last_sync) setLastSync(new Date(data.last_sync)); });
   }, [user]);
 
+  const [now] = useState(() => Date.now());
   const formatLastSync = (date) => {
     if (!date) return "Nunca";
-    const diff = Math.floor((Date.now() - date.getTime()) / 60000);
+    const diff = Math.floor((now - date.getTime()) / 60000);
     if (diff < 1) return "Hace un momento";
     if (diff < 60) return `Hace ${diff} min`;
     if (diff < 1440) return `Hace ${Math.floor(diff / 60)}h`;
@@ -510,62 +520,69 @@ function ConectarScreen({ setSyncStatus }) {
           facilito escanea tu Gmail cada 12h buscando XMLs del SRI y los guarda automáticamente.
         </p>
 
-        {/* Gmail card */}
-        <div style={{ background: COLORS.white, borderRadius: 20, padding: "20px", marginBottom: 16, boxShadow: "0 4px 20px rgba(0,0,0,0.06)", border: estado === "success" ? `2px solid ${COLORS.greenAccent}` : "2px solid transparent" }}>
+        {/* Gmail card - dark important card */}
+        <div style={{ background: COLORS.green, borderRadius: 20, padding: "20px", marginBottom: 16, border: estado === "success" ? `2px solid ${COLORS.greenAccent}` : "2px solid transparent" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 12 }}>
-            <div style={{ width: 48, height: 48, borderRadius: 14, background: "#FDECEA", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24 }}>📧</div>
+            <div style={{ width: 48, height: 48, borderRadius: 14, background: "rgba(255,255,255,0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Icon name="mail" color={COLORS.white} size={26} />
+            </div>
             <div style={{ flex: 1 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <p style={{ color: COLORS.green, fontSize: 15, fontWeight: 700 }}>Gmail</p>
-                <span style={{ fontSize: 10, background: "#E8F5E9", color: COLORS.greenAccent, padding: "2px 8px", borderRadius: 6, fontWeight: 700 }}>✓ Conectado</span>
+                <p style={{ color: COLORS.white, fontSize: 15, fontWeight: 700 }}>Gmail</p>
+                <span style={{ fontSize: 10, background: "rgba(76,175,130,0.2)", color: COLORS.greenAccent, padding: "2px 8px", borderRadius: 6, fontWeight: 700, display: "flex", alignItems: "center", gap: 3 }}>
+                  <Icon name="check_circle" color={COLORS.greenAccent} size={10} /> Conectado
+                </span>
               </div>
-              <p style={{ color: COLORS.gray, fontSize: 11, marginTop: 2 }}>
+              <p style={{ color: "rgba(255,255,255,0.5)", fontSize: 11, marginTop: 2 }}>
                 Último sync: <span style={{ fontWeight: 600 }}>{formatLastSync(lastSync)}</span>
               </p>
             </div>
           </div>
 
-          {/* Progreso */}
           {estado === "syncing" && (
             <div style={{ marginBottom: 12 }}>
-              <p style={{ color: COLORS.gray, fontSize: 12, marginBottom: 6 }}>Buscando facturas en Gmail...</p>
-              <div style={{ height: 5, background: COLORS.grayLight, borderRadius: 3, overflow: "hidden" }}>
+              <p style={{ color: "rgba(255,255,255,0.6)", fontSize: 12, marginBottom: 6 }}>Buscando facturas en Gmail...</p>
+              <div style={{ height: 5, background: "rgba(255,255,255,0.1)", borderRadius: 3, overflow: "hidden" }}>
                 <div className="pulse" style={{ height: "100%", width: "60%", background: COLORS.yellow, borderRadius: 3 }} />
               </div>
             </div>
           )}
 
-          {/* Resultado éxito */}
           {estado === "success" && resultado && (
-            <div style={{ background: "#E8F5E9", borderRadius: 12, padding: "12px 14px", marginBottom: 12 }}>
-              <p style={{ color: "#2E7D32", fontSize: 13, fontWeight: 700 }}>✓ {resultado.nuevas} facturas nuevas guardadas</p>
-              {resultado.duplicadas > 0 && <p style={{ color: COLORS.gray, fontSize: 11, marginTop: 3 }}>{resultado.duplicadas} ya existían (omitidas)</p>}
-              {resultado.errores > 0 && <p style={{ color: COLORS.gray, fontSize: 11, marginTop: 2 }}>{resultado.errores} emails no pudieron procesarse</p>}
+            <div style={{ background: "rgba(76,175,130,0.15)", borderRadius: 12, padding: "12px 14px", marginBottom: 12 }}>
+              <p style={{ color: COLORS.greenAccent, fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}>
+                <Icon name="check_circle" color={COLORS.greenAccent} size={16} /> {resultado.nuevas} facturas nuevas guardadas
+              </p>
+              {resultado.duplicadas > 0 && <p style={{ color: "rgba(255,255,255,0.5)", fontSize: 11, marginTop: 3 }}>{resultado.duplicadas} ya existían (omitidas)</p>}
+              {resultado.errores > 0 && <p style={{ color: "rgba(255,255,255,0.5)", fontSize: 11, marginTop: 2 }}>{resultado.errores} emails no pudieron procesarse</p>}
             </div>
           )}
 
-          {/* Error */}
           {estado === "error" && resultado && (
-            <div style={{ background: "#FFEBEE", borderRadius: 12, padding: "12px 14px", marginBottom: 12, border: "1px solid #FFCDD2" }}>
-              <p style={{ color: "#C62828", fontSize: 13, fontWeight: 700 }}>⚠️ {resultado.mensaje}</p>
-              <p style={{ color: "#E53935", fontSize: 11, marginTop: 3 }}>Puede que necesites volver a iniciar sesión</p>
+            <div style={{ background: "rgba(224,82,82,0.15)", borderRadius: 12, padding: "12px 14px", marginBottom: 12, border: "1px solid rgba(224,82,82,0.3)" }}>
+              <p style={{ color: "#FF8A80", fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}>
+                <Icon name="warning" color="#FF8A80" size={16} /> {resultado.mensaje}
+              </p>
+              <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, marginTop: 3 }}>Puede que necesites volver a iniciar sesión</p>
             </div>
           )}
 
           <button
             onClick={handleSync}
             disabled={estado === "syncing"}
-            style={{ width: "100%", padding: "13px", background: estado === "syncing" ? COLORS.grayLight : COLORS.green, color: estado === "syncing" ? COLORS.gray : COLORS.white, border: "none", borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: estado === "syncing" ? "not-allowed" : "pointer", fontFamily: "DM Sans, sans-serif", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
+            style={{ width: "100%", padding: "13px", background: estado === "syncing" ? "rgba(255,255,255,0.1)" : COLORS.yellow, color: estado === "syncing" ? "rgba(255,255,255,0.5)" : COLORS.green, border: "none", borderRadius: 12, fontSize: 14, fontWeight: 700, cursor: estado === "syncing" ? "not-allowed" : "pointer", fontFamily: "DM Sans, sans-serif", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
           >
-            <span style={{ display: "inline-block", animation: estado === "syncing" ? "spin 1s linear infinite" : "none" }}>🔄</span>
+            <Icon name="sync" color={estado === "syncing" ? "rgba(255,255,255,0.5)" : COLORS.green} size={18} style={{ display: "inline-block", animation: estado === "syncing" ? "spin 1s linear infinite" : "none" }} />
             {estado === "syncing" ? "Sincronizando..." : "Sincronizar ahora"}
           </button>
         </div>
 
         {/* Outlook coming soon */}
-        <div style={{ background: COLORS.white, borderRadius: 20, padding: "20px", marginBottom: 16, boxShadow: "0 4px 20px rgba(0,0,0,0.06)", opacity: 0.6 }}>
+        <div style={{ background: COLORS.white, borderRadius: 20, padding: "20px", marginBottom: 16, border: `1px solid ${COLORS.border}`, opacity: 0.6 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            <div style={{ width: 48, height: 48, borderRadius: 14, background: "#E3F2FD", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24 }}>📬</div>
+            <div style={{ width: 48, height: 48, borderRadius: 14, background: "#52A8E015", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Icon name="mark_email_unread" color="#52A8E0" size={26} />
+            </div>
             <div style={{ flex: 1 }}>
               <p style={{ color: COLORS.green, fontSize: 15, fontWeight: 700 }}>Outlook / Hotmail</p>
               <p style={{ color: COLORS.gray, fontSize: 12 }}>Próximamente disponible</p>
@@ -575,9 +592,11 @@ function ConectarScreen({ setSyncStatus }) {
         </div>
 
         {/* Manual XML */}
-        <div style={{ background: COLORS.white, borderRadius: 20, padding: "20px", boxShadow: "0 4px 20px rgba(0,0,0,0.06)" }}>
+        <div style={{ background: COLORS.white, borderRadius: 20, padding: "20px", border: `1px solid ${COLORS.border}` }}>
           <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 16 }}>
-            <div style={{ width: 48, height: 48, borderRadius: 14, background: "#FFF9C4", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24 }}>📄</div>
+            <div style={{ width: 48, height: 48, borderRadius: 14, background: COLORS.yellow + "20", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Icon name="description" color={COLORS.green} size={26} />
+            </div>
             <div>
               <p style={{ color: COLORS.green, fontSize: 15, fontWeight: 700 }}>Subir XML del SRI</p>
               <p style={{ color: COLORS.gray, fontSize: 12 }}>Importación manual</p>
@@ -595,7 +614,7 @@ function ConectarScreen({ setSyncStatus }) {
 
 // ── Declaración ───────────────────────────────────────────────────────────────
 function DeclaracionScreen({ facturas, perfil, updatePerfil, savePerfil, syncStatus, rebaja, limite, salarioAnual, cargas }) {
-  const [tab, setTab] = useState("perfil"); // perfil | gp | anexo
+  const [tab, setTab] = useState("perfil");
   const [generatedGP, setGeneratedGP] = useState(false);
   const [generatedAnexo, setGeneratedAnexo] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -638,7 +657,6 @@ function DeclaracionScreen({ facturas, perfil, updatePerfil, savePerfil, syncSta
 
   return (
     <div className="screen-enter" style={{ flex: 1, overflowY: "auto", background: COLORS.offWhite }}>
-      {/* Header */}
       <div style={{ background: COLORS.green, padding: "20px 24px 20px" }}>
         <p style={{ color: "rgba(255,255,255,0.6)", fontSize: 12, marginBottom: 4 }}>Período fiscal 2025</p>
         <p style={{ color: COLORS.white, fontSize: 22, fontWeight: 800, fontFamily: "Syne, sans-serif" }}>Formularios SRI</p>
@@ -647,11 +665,13 @@ function DeclaracionScreen({ facturas, perfil, updatePerfil, savePerfil, syncSta
       {/* Tabs */}
       <div style={{ background: COLORS.white, padding: "12px 20px", display: "flex", gap: 8, borderBottom: `1px solid ${COLORS.grayLight}` }}>
         {[
-          { id: "perfil", label: "👤 Perfil" },
-          { id: "gp", label: "📋 Form. GP" },
-          { id: "anexo", label: "📄 Anexo GSP" },
+          { id: "perfil", icon: "person", label: "Perfil" },
+          { id: "gp", icon: "receipt_long", label: "Form. GP" },
+          { id: "anexo", icon: "description", label: "Anexo GSP" },
         ].map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)} style={{ padding: "7px 14px", borderRadius: 20, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 600, background: tab === t.id ? COLORS.green : COLORS.grayLight, color: tab === t.id ? COLORS.white : COLORS.gray, transition: "all 0.2s", fontFamily: "DM Sans, sans-serif" }}>{t.label}</button>
+          <button key={t.id} onClick={() => setTab(t.id)} style={{ padding: "7px 14px", borderRadius: 20, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 600, background: tab === t.id ? COLORS.green : COLORS.grayLight, color: tab === t.id ? COLORS.white : COLORS.gray, transition: "all 0.2s", fontFamily: "DM Sans, sans-serif", display: "flex", alignItems: "center", gap: 4 }}>
+            <Icon name={t.icon} color={tab === t.id ? COLORS.white : COLORS.gray} size={14} /> {t.label}
+          </button>
         ))}
       </div>
 
@@ -660,8 +680,12 @@ function DeclaracionScreen({ facturas, perfil, updatePerfil, savePerfil, syncSta
         {/* ── TAB: PERFIL ── */}
         {tab === "perfil" && (
           <div>
+            {/* Rebaja card - dark important */}
             <div style={{ background: COLORS.green, borderRadius: 20, padding: "16px 20px", marginBottom: 20 }}>
-              <p style={{ color: "rgba(255,255,255,0.7)", fontSize: 11, marginBottom: 6 }}>Rebaja estimada de IR</p>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                <Icon name="savings" color="rgba(255,255,255,0.6)" size={16} />
+                <p style={{ color: "rgba(255,255,255,0.7)", fontSize: 11 }}>Rebaja estimada de IR</p>
+              </div>
               <p style={{ color: COLORS.yellow, fontSize: 30, fontWeight: 800, fontFamily: "Syne, sans-serif" }}>${rebaja.toFixed(2)}</p>
               {limite > 0 && (
                 <p style={{ color: "rgba(255,255,255,0.5)", fontSize: 11, marginTop: 4 }}>
@@ -688,7 +712,7 @@ function DeclaracionScreen({ facturas, perfil, updatePerfil, savePerfil, syncSta
               </div>
             </div>
 
-            <div style={{ background: COLORS.white, borderRadius: 14, padding: "14px 16px", marginBottom: 14, display: "flex", justifyContent: "space-between", alignItems: "center", boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
+            <div style={{ background: COLORS.white, borderRadius: 14, padding: "14px 16px", marginBottom: 14, display: "flex", justifyContent: "space-between", alignItems: "center", border: `1px solid ${COLORS.border}` }}>
               <div>
                 <p style={{ color: COLORS.green, fontSize: 13, fontWeight: 600 }}>Enfermedad catastrófica</p>
                 <p style={{ color: COLORS.gray, fontSize: 11 }}>Persona o carga familiar</p>
@@ -699,8 +723,10 @@ function DeclaracionScreen({ facturas, perfil, updatePerfil, savePerfil, syncSta
             </div>
 
             {salarioAnual > 0 && (
-              <div style={{ background: "#E8F5E9", borderRadius: 14, padding: "14px 16px", marginBottom: 16 }}>
-                <p style={{ color: "#2E7D32", fontSize: 12, fontWeight: 700, marginBottom: 6 }}>📊 Resumen de cálculo</p>
+              <div style={{ background: COLORS.white, borderRadius: 14, padding: "14px 16px", marginBottom: 16, border: `1px solid ${COLORS.border}` }}>
+                <p style={{ color: COLORS.green, fontSize: 12, fontWeight: 700, marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>
+                  <Icon name="bar_chart" color={COLORS.greenAccent} size={16} /> Resumen de cálculo
+                </p>
                 <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                   {[
                     ["Salario anual", `$${salarioAnual.toFixed(2)}`],
@@ -710,23 +736,23 @@ function DeclaracionScreen({ facturas, perfil, updatePerfil, savePerfil, syncSta
                     ["Gastos efectivos", `$${deducibleEfectivo.toFixed(2)}`],
                   ].map(([k, v]) => (
                     <div key={k} style={{ display: "flex", justifyContent: "space-between" }}>
-                      <span style={{ color: "#388E3C", fontSize: 11 }}>{k}</span>
-                      <span style={{ color: "#1B5E20", fontSize: 11, fontWeight: 700 }}>{v}</span>
+                      <span style={{ color: COLORS.gray, fontSize: 11 }}>{k}</span>
+                      <span style={{ color: COLORS.green, fontSize: 11, fontWeight: 700 }}>{v}</span>
                     </div>
                   ))}
                 </div>
               </div>
             )}
 
-            {/* Offline error */}
             {syncStatus === "error" && (
               <div style={{ background: "#FFEBEE", borderRadius: 12, padding: "12px 16px", marginBottom: 12, border: "1px solid #FFCDD2" }}>
-                <p style={{ color: "#C62828", fontSize: 12, fontWeight: 600 }}>⚠️ Sin conexión a internet</p>
+                <p style={{ color: "#C62828", fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
+                  <Icon name="warning" color="#C62828" size={16} /> Sin conexión a internet
+                </p>
                 <p style={{ color: "#E53935", fontSize: 11, marginTop: 2 }}>Conéctate para guardar tus datos</p>
               </div>
             )}
 
-            {/* Save button */}
             <button
               onClick={() => savePerfil(perfil)}
               disabled={syncStatus === "saving"}
@@ -737,10 +763,10 @@ function DeclaracionScreen({ facturas, perfil, updatePerfil, savePerfil, syncSta
                 border: "none", borderRadius: 14, fontSize: 15, fontWeight: 700,
                 cursor: syncStatus === "saving" ? "not-allowed" : "pointer",
                 fontFamily: "DM Sans, sans-serif", transition: "all 0.3s",
-                marginBottom: 6,
+                marginBottom: 6, display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
               }}
             >
-              {syncStatus === "saving" ? "Guardando..." : syncStatus === "saved" ? "✓ Guardado" : "💾 Guardar perfil"}
+              {syncStatus === "saving" ? "Guardando..." : syncStatus === "saved" ? (<><Icon name="check_circle" color={COLORS.white} size={18} /> Guardado</>) : (<><Icon name="save" color={COLORS.white} size={18} /> Guardar perfil</>)}
             </button>
           </div>
         )}
@@ -748,15 +774,15 @@ function DeclaracionScreen({ facturas, perfil, updatePerfil, savePerfil, syncSta
         {/* ── TAB: FORMULARIO GP ── */}
         {tab === "gp" && (
           <div>
-            <div style={{ background: "#FFF9C4", borderRadius: 14, padding: "12px 16px", marginBottom: 16, border: "1px solid #F9E000" }}>
-              <p style={{ color: "#5D4037", fontSize: 12, fontWeight: 600, lineHeight: 1.5 }}>
-                📋 <strong>Formulario SRI-GP</strong> — Se presenta a tu empleador en febrero. Declara tus gastos personales <em>proyectados</em> para que calculen la retención mensual correcta.
+            <div style={{ background: COLORS.yellow + "30", borderRadius: 14, padding: "12px 16px", marginBottom: 16, border: `1px solid ${COLORS.yellow}60` }}>
+              <p style={{ color: COLORS.green, fontSize: 12, fontWeight: 600, lineHeight: 1.5, display: "flex", alignItems: "flex-start", gap: 8 }}>
+                <Icon name="receipt_long" color={COLORS.green} size={18} style={{ flexShrink: 0, marginTop: 1 }} />
+                <span><strong>Formulario SRI-GP</strong> — Se presenta a tu empleador en febrero. Declara tus gastos personales <em>proyectados</em> para que calculen la retención mensual correcta.</span>
               </p>
             </div>
 
-            {/* Ingresos */}
             <SectionLabel>Ingresos proyectados</SectionLabel>
-            <div style={{ background: COLORS.white, borderRadius: 14, padding: "14px 16px", marginBottom: 12, boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
+            <div style={{ background: COLORS.white, borderRadius: 14, padding: "14px 16px", marginBottom: 12, border: `1px solid ${COLORS.border}` }}>
               {[
                 ["103", "Ingresos con este empleador", perfil.salario ? `$${(parseFloat(perfil.salario) * 12).toFixed(2)}` : "—"],
                 ["104", "Ingresos con otros empleadores", perfil.otrosIngresos ? `$${(parseFloat(perfil.otrosIngresos) * 12).toFixed(2)}` : "$0.00"],
@@ -772,11 +798,9 @@ function DeclaracionScreen({ facturas, perfil, updatePerfil, savePerfil, syncSta
               ))}
             </div>
 
-            {/* Gastos proyectados */}
             <SectionLabel>Gastos proyectados (campos 106–112)</SectionLabel>
-            <div style={{ background: COLORS.white, borderRadius: 14, overflow: "hidden", marginBottom: 12, boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
+            <div style={{ background: COLORS.white, borderRadius: 14, overflow: "hidden", marginBottom: 12, border: `1px solid ${COLORS.border}` }}>
               {Object.entries(CAT_SRI).map(([cat, { field, color }], i, arr) => {
-                // Project annual from current monthly data (multiply by 12 as projection)
                 const mensual = catTotals[cat] || 0;
                 const anual = mensual * 12;
                 return (
@@ -801,8 +825,7 @@ function DeclaracionScreen({ facturas, perfil, updatePerfil, savePerfil, syncSta
               </div>
             </div>
 
-            {/* Rebaja */}
-            <div style={{ background: COLORS.white, borderRadius: 14, padding: "14px 16px", marginBottom: 16, boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
+            <div style={{ background: COLORS.white, borderRadius: 14, padding: "14px 16px", marginBottom: 16, border: `1px solid ${COLORS.border}` }}>
               {[
                 ["113", "Discapacidad / Enfermedad catastrófica", perfil.enfermedadCatastrofica ? "SÍ" : "NO"],
                 ["114", "Número de cargas familiares", perfil.cargas || "0"],
@@ -819,28 +842,30 @@ function DeclaracionScreen({ facturas, perfil, updatePerfil, savePerfil, syncSta
             </div>
 
             {generatedGP ? (
-              <div style={{ background: "#E8F5E9", borderRadius: 16, padding: "16px", marginTop: 4 }}>
+              <div style={{ background: COLORS.white, borderRadius: 16, padding: "16px", marginTop: 4, border: `1px solid ${COLORS.greenAccent}40` }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-                  <div style={{ width: 40, height: 40, borderRadius: 10, background: "#C8E6C9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>📊</div>
-                  <div style={{ flex: 1 }}>
-                    <p style={{ color: "#2E7D32", fontSize: 13, fontWeight: 700 }}>Formulario_GP_{new Date().getFullYear()}.xlsx</p>
-                    <p style={{ color: "#4CAF50", fontSize: 11 }}>Descargado · {new Date().toLocaleDateString("es-EC")}</p>
+                  <div style={{ width: 40, height: 40, borderRadius: 10, background: COLORS.greenAccent + "15", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <Icon name="bar_chart" color={COLORS.greenAccent} size={22} />
                   </div>
-                  <span style={{ color: "#4CAF50", fontSize: 18 }}>✅</span>
+                  <div style={{ flex: 1 }}>
+                    <p style={{ color: COLORS.green, fontSize: 13, fontWeight: 700 }}>Formulario_GP_{new Date().getFullYear()}.xlsx</p>
+                    <p style={{ color: COLORS.greenAccent, fontSize: 11 }}>Descargado · {new Date().toLocaleDateString("es-EC")}</p>
+                  </div>
+                  <Icon name="check_circle" color={COLORS.greenAccent} size={22} />
                 </div>
                 <div style={{ display: "flex", gap: 8 }}>
-                  <button onClick={handleGenerateGP} style={{ flex: 1, padding: "12px", background: COLORS.green, color: COLORS.white, border: "none", borderRadius: 12, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "DM Sans, sans-serif" }}>
-                    ⬇️ Descargar de nuevo
+                  <button onClick={handleGenerateGP} style={{ flex: 1, padding: "12px", background: COLORS.green, color: COLORS.white, border: "none", borderRadius: 12, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "DM Sans, sans-serif", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                    <Icon name="download" color={COLORS.white} size={16} /> Descargar de nuevo
                   </button>
-                  <button onClick={() => setGeneratedGP(false)} style={{ padding: "12px 16px", background: "transparent", color: "#2E7D32", border: "2px solid #A5D6A7", borderRadius: 12, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "DM Sans, sans-serif" }}>
-                    🔄 Regenerar
+                  <button onClick={() => setGeneratedGP(false)} style={{ padding: "12px 16px", background: "transparent", color: COLORS.green, border: `2px solid ${COLORS.border}`, borderRadius: 12, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "DM Sans, sans-serif", display: "flex", alignItems: "center", gap: 4 }}>
+                    <Icon name="sync" color={COLORS.green} size={14} /> Regenerar
                   </button>
                 </div>
               </div>
             ) : (
               <>
                 <GreenBtn onClick={handleGenerateGP} disabled={!perfilValido || generating}>
-                  {generating ? "Generando..." : "⬇️ Generar Formulario GP (.xlsx)"}
+                  {generating ? "Generando..." : (<><Icon name="download" color={COLORS.white} size={18} /> Generar Formulario GP (.xlsx)</>)}
                 </GreenBtn>
                 {!perfilValido && <p style={{ color: COLORS.gray, fontSize: 11, textAlign: "center", marginTop: 8 }}>Completa tu perfil primero</p>}
               </>
@@ -851,14 +876,15 @@ function DeclaracionScreen({ facturas, perfil, updatePerfil, savePerfil, syncSta
         {/* ── TAB: ANEXO GSP ── */}
         {tab === "anexo" && (
           <div>
-            <div style={{ background: "#E3F2FD", borderRadius: 14, padding: "12px 16px", marginBottom: 16, border: "1px solid #BBDEFB" }}>
-              <p style={{ color: "#1565C0", fontSize: 12, fontWeight: 600, lineHeight: 1.5 }}>
-                📄 <strong>Anexo de Gastos Personales</strong> — Refleja los gastos <em>reales</em> del año. Se presenta junto al Formulario 107 que genera tu empleador.
+            <div style={{ background: "#52A8E015", borderRadius: 14, padding: "12px 16px", marginBottom: 16, border: "1px solid #52A8E030" }}>
+              <p style={{ color: COLORS.green, fontSize: 12, fontWeight: 600, lineHeight: 1.5, display: "flex", alignItems: "flex-start", gap: 8 }}>
+                <Icon name="description" color="#52A8E0" size={18} style={{ flexShrink: 0, marginTop: 1 }} />
+                <span><strong>Anexo de Gastos Personales</strong> — Refleja los gastos <em>reales</em> del año. Se presenta junto al Formulario 107 que genera tu empleador.</span>
               </p>
             </div>
 
             <SectionLabel>Detalle por proveedor</SectionLabel>
-            <div style={{ background: COLORS.white, borderRadius: 14, overflow: "hidden", marginBottom: 12, boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
+            <div style={{ background: COLORS.white, borderRadius: 14, overflow: "hidden", marginBottom: 12, border: `1px solid ${COLORS.border}` }}>
               <div style={{ display: "flex", padding: "8px 14px", background: COLORS.grayLight }}>
                 <span style={{ color: COLORS.gray, fontSize: 10, fontWeight: 700, flex: 2 }}>PROVEEDOR</span>
                 <span style={{ color: COLORS.gray, fontSize: 10, fontWeight: 700, flex: 1, textAlign: "center" }}>COMP.</span>
@@ -880,15 +906,14 @@ function DeclaracionScreen({ facturas, perfil, updatePerfil, savePerfil, syncSta
               </div>
             </div>
 
-            {/* Categorías SRI */}
             <SectionLabel>Por tipo de gasto SRI</SectionLabel>
             <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
-              {Object.entries(CAT_SRI).map(([cat, { field, color }]) => {
+              {Object.entries(CAT_SRI).map(([cat, { color }]) => {
                 const monto = catTotals[cat] || 0;
                 return (
-                  <div key={cat} style={{ background: COLORS.white, borderRadius: 12, padding: "12px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", boxShadow: "0 1px 6px rgba(0,0,0,0.04)" }}>
+                  <div key={cat} style={{ background: COLORS.white, borderRadius: 12, padding: "12px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", border: `1px solid ${COLORS.border}` }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ fontSize: 16 }}>{categoriaIcons[cat]}</span>
+                      <Icon name={catIcons[cat]} color={color} size={18} />
                       <span style={{ color: COLORS.green, fontSize: 12, fontWeight: 600 }}>{cat}</span>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -903,18 +928,20 @@ function DeclaracionScreen({ facturas, perfil, updatePerfil, savePerfil, syncSta
             </div>
 
             <GreenBtn onClick={handleGenerateAnexo} disabled={!perfilValido || generating}>
-              {generating ? "Generando..." : generatedAnexo ? "⬇️ Descargar de nuevo" : "⬇️ Generar Anexo GSP (.xlsx)"}
+              {generating ? "Generando..." : generatedAnexo ? (<><Icon name="download" color={COLORS.white} size={18} /> Descargar de nuevo</>) : (<><Icon name="download" color={COLORS.white} size={18} /> Generar Anexo GSP (.xlsx)</>)}
             </GreenBtn>
             <div style={{ marginTop: 10 }}>
               <GreenBtn outline onClick={handleGenerateAmbos} disabled={!perfilValido || generating} small>
-                ⬇️ Generar ambos formularios
+                <Icon name="download" color={COLORS.green} size={16} /> Generar ambos formularios
               </GreenBtn>
             </div>
             {!perfilValido && <p style={{ color: COLORS.gray, fontSize: 11, textAlign: "center", marginTop: 8 }}>Completa tu perfil primero</p>}
             {generatedAnexo && (
-              <div style={{ background: "#E8F5E9", borderRadius: 12, padding: "12px 16px", marginTop: 12 }}>
-                <p style={{ color: "#2E7D32", fontSize: 13, fontWeight: 600 }}>✅ Anexo_GSP_{new Date().getFullYear()}.xlsx descargado</p>
-                <p style={{ color: "#4CAF50", fontSize: 11, marginTop: 2 }}>3 hojas: Proveedores · Pensión alimenticia · Valores no cubiertos</p>
+              <div style={{ background: COLORS.white, borderRadius: 12, padding: "12px 16px", marginTop: 12, border: `1px solid ${COLORS.greenAccent}40` }}>
+                <p style={{ color: COLORS.greenAccent, fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
+                  <Icon name="check_circle" color={COLORS.greenAccent} size={16} /> Anexo_GSP_{new Date().getFullYear()}.xlsx descargado
+                </p>
+                <p style={{ color: COLORS.gray, fontSize: 11, marginTop: 2 }}>3 hojas: Proveedores · Pensión alimenticia · Valores no cubiertos</p>
               </div>
             )}
           </div>
