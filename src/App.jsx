@@ -16,6 +16,7 @@ import FacturasPage from "./pages/FacturasPage";
 import HistorialPage from "./pages/HistorialPage";
 import AjustesPage from "./pages/AjustesPage";
 import ProyeccionIRPage from "./pages/ProyeccionIRPage";
+import DeclaracionIRPage from "./pages/DeclaracionIRPage";
 
 function LoadingScreen() {
   return (
@@ -64,6 +65,7 @@ function AppContent() {
           <Route path="/obligaciones/iva/:year/:mes" element={<IvaDeclaracionPage />} />
           <Route path="/obligaciones/iva-semestral/:anio/:semestre" element={<IvaSemestralPage />} />
           <Route path="/obligaciones/gastos-personales/:anio" element={<GastosPersonalesPage />} />
+          <Route path="/obligaciones/renta/:anio" element={<DeclaracionIRPage />} />
           <Route path="/obligaciones/:tipo/:year/:periodo" element={<ObligacionDetallePage />} />
           <Route path="/obligaciones/:tipo/:year" element={<ObligacionDetallePage />} />
           <Route path="/proyeccion-ir" element={<ProyeccionIRPage />} />

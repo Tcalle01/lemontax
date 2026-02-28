@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { C } from "../theme";
+import { C, OBLIGACIONES_POR_TIPO } from "../theme";
 import Icon from "./Icon";
 import { usePerfil } from "../hooks/usePerfil";
 
@@ -12,6 +12,11 @@ export default function TarjetaPerfilTributario() {
   const regimenLabel = regimen === "rimpe_emprendedor" ? "RIMPE Emprendedor"
     : regimen === "rimpe_negocio_popular" ? "RIMPE Negocio Popular"
     : "Régimen General";
+
+  const obligTipos = OBLIGACIONES_POR_TIPO[tipoContribuyente] ?? [];
+  const ivaLabel = obligTipos.includes("iva_semestral") ? "IVA Semestral"
+    : obligTipos.includes("iva_mensual") ? "IVA Mensual"
+    : null;
 
   return (
     <div style={{
@@ -32,6 +37,17 @@ export default function TarjetaPerfilTributario() {
           <p style={{ color: "rgba(255,255,255,0.5)", fontSize: 12, lineHeight: 1.5 }}>
             {detalle}
           </p>
+          {ivaLabel && (
+            <div style={{ marginTop: 12 }}>
+              <span style={{
+                fontSize: 10, fontWeight: 700, padding: "3px 9px", borderRadius: 6,
+                background: "rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.75)",
+                fontFamily: "DM Sans, sans-serif",
+              }}>
+                {ivaLabel}
+              </span>
+            </div>
+          )}
         </div>
         <button
           onClick={() => navigate("/ajustes")}
