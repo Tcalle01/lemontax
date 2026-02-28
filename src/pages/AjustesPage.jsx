@@ -16,6 +16,116 @@ const labelStyle = {
   letterSpacing: 0.5, marginBottom: 6, display: "block",
 };
 
+const DIAS_OPCIONES = [
+  { valor: 1, label: "1 día antes" },
+  { valor: 3, label: "3 días antes" },
+  { valor: 7, label: "7 días antes" },
+  { valor: 15, label: "15 días antes" },
+];
+
+function NotificacionesSection({ perfil, updatePerfil, savePerfil, user }) {
+  const [guardando, setGuardando] = useState(false);
+  const [guardado, setGuardado] = useState(false);
+
+  const emailPlaceholder = user?.email || "tu@email.com";
+
+  const handleGuardar = async () => {
+    setGuardando(true);
+    const ok = await savePerfil();
+    setGuardando(false);
+    if (ok) { setGuardado(true); setTimeout(() => setGuardado(false), 2500); }
+  };
+
+  return (
+    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 24, marginBottom: 20, boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
+        <div style={{ width: 36, height: 36, borderRadius: 10, background: C.green + "12", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Icon name="notifications" color={C.green} size={20} />
+        </div>
+        <div>
+          <p style={{ color: C.text, fontSize: 14, fontWeight: 700 }}>Recordatorios por email</p>
+          <p style={{ color: C.textDim, fontSize: 11, marginTop: 2 }}>Recibe alertas antes de que venza una obligación</p>
+        </div>
+      </div>
+
+      {/* Toggle activar/desactivar */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 16px", background: C.surface, borderRadius: 10, border: `1px solid ${C.border}`, marginBottom: 16 }}>
+        <div>
+          <p style={{ color: C.text, fontSize: 13, fontWeight: 600 }}>Activar notificaciones</p>
+          <p style={{ color: C.textDim, fontSize: 11 }}>Te avisamos antes de cada vencimiento</p>
+        </div>
+        <button
+          onClick={() => updatePerfil("notificacionesEmail", !perfil.notificacionesEmail)}
+          style={{
+            width: 44, height: 24, borderRadius: 12, border: "none", cursor: "pointer",
+            background: perfil.notificacionesEmail ? C.greenAccent : C.border, position: "relative", transition: "all 0.2s",
+          }}
+        >
+          <div style={{ width: 18, height: 18, borderRadius: 9, background: C.white, position: "absolute", top: 3, left: perfil.notificacionesEmail ? 23 : 3, transition: "all 0.2s" }} />
+        </button>
+      </div>
+
+      {perfil.notificacionesEmail && (
+        <>
+          {/* Anticipación */}
+          <div style={{ marginBottom: 16 }}>
+            <label style={labelStyle}>¿Con cuánta anticipación te avisamos?</label>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {DIAS_OPCIONES.map(({ valor, label }) => (
+                <button
+                  key={valor}
+                  onClick={() => updatePerfil("diasAnticipacion", valor)}
+                  style={{
+                    padding: "8px 14px", borderRadius: 8, fontSize: 12, fontWeight: 700,
+                    fontFamily: "DM Sans, sans-serif", cursor: "pointer",
+                    border: `1px solid ${perfil.diasAnticipacion === valor ? C.green : C.border}`,
+                    background: perfil.diasAnticipacion === valor ? C.green : "transparent",
+                    color: perfil.diasAnticipacion === valor ? C.white : C.textMid,
+                    transition: "all 0.15s",
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Email destino */}
+          <div style={{ marginBottom: 16 }}>
+            <label style={labelStyle}>Email para recordatorios</label>
+            <input
+              type="email"
+              value={perfil.emailNotificaciones || ""}
+              onChange={e => updatePerfil("emailNotificaciones", e.target.value)}
+              placeholder={emailPlaceholder}
+              style={inputStyle}
+            />
+            <p style={{ color: C.textDim, fontSize: 11, marginTop: 5 }}>
+              Si lo dejas vacío, usamos el email de tu cuenta Google
+            </p>
+          </div>
+        </>
+      )}
+
+      <button
+        onClick={handleGuardar}
+        disabled={guardando}
+        style={{
+          padding: "10px 20px", borderRadius: 10, border: "none",
+          cursor: guardando ? "not-allowed" : "pointer",
+          background: guardado ? C.greenAccent : C.green,
+          color: C.white, fontSize: 13, fontWeight: 800, fontFamily: "DM Sans, sans-serif",
+          display: "flex", alignItems: "center", gap: 8,
+        }}
+      >
+        {guardando ? "Guardando..." : guardado
+          ? <><Icon name="check_circle" color={C.white} size={16} /> Guardado</>
+          : <><Icon name="save" color={C.white} size={16} /> Guardar preferencias</>}
+      </button>
+    </div>
+  );
+}
+
 function formatLastSync(date) {
   if (!date) return "Nunca";
   const diff = Math.floor((Date.now() - date.getTime()) / 60000);
@@ -213,6 +323,9 @@ export default function AjustesPage() {
           {syncStatus === "error" && <p style={{ color: C.red, fontSize: 12, marginTop: 8, textAlign: "center" }}>Error al guardar — verifica tu conexión</p>}
         </div>
       </div>
+
+      {/* ─── Notificaciones por email ─── */}
+      <NotificacionesSection perfil={perfil} updatePerfil={updatePerfil} savePerfil={savePerfil} user={user} />
 
       {/* ─── Gmail sync ─── */}
       <div style={{ background: C.cardDark, borderRadius: 16, padding: 24, marginBottom: 20, boxShadow: "0 2px 12px rgba(26,58,42,0.12)" }}>

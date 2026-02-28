@@ -16,7 +16,8 @@ npm run build        # Production build → dist/
 npm run lint         # ESLint (eslint .)
 npm run preview      # Preview production build locally
 
-npx supabase functions deploy gmail-sync   # Deploy edge function
+npx supabase functions deploy gmail-sync          # Deploy Gmail sync edge function
+npx supabase functions deploy enviar-recordatorios # Deploy email reminder edge function
 ```
 
 No test suite is configured. Frontend auto-deploys on push to `main` via Vercel.
@@ -44,12 +45,12 @@ Browser (React 19 + Vite 7)
   ├── Supabase client calls (facturas, perfil, gmail_tokens tables)
   └── triggerSync() → POST to Edge Function
 
-Supabase Edge Function (gmail-sync, Deno/TypeScript)
-  ├── Refreshes Google OAuth token from stored refresh_token
-  ├── Searches Gmail for SRI invoice emails (XML/ZIP attachments)
-  ├── Parses 3 XML formats: CDATA, HTML-encoded, direct
-  ├── Categorizes via regex → Claude Haiku fallback for "Otros"
-  └── Upserts into facturas (conflict key: user_id + clave_acceso)
+Supabase Edge Functions (Deno/TypeScript)
+  ├── gmail-sync — Refreshes Google OAuth token, searches Gmail for SRI invoice emails,
+  │     parses 3 XML formats (CDATA/HTML-encoded/direct), categorizes via regex → Claude Haiku fallback, upserts facturas
+  └── enviar-recordatorios — Cron diario 8am EC (13:00 UTC via pg_cron). Para cada usuario con
+        notificaciones_email=true calcula obligaciones próximas y envía email via Resend si
+        diasHasta(vencimiento) === dias_anticipacion. Sin noveno_digito_ruc → usa día 10 como fallback.
 ```
 
 ### Key Files
@@ -64,9 +65,10 @@ Supabase Edge Function (gmail-sync, Deno/TypeScript)
 - `src/theme.js` — Design tokens (C), catColors, catIcons, CANASTA, TIPOS_CONTRIBUYENTE, OBLIGACIONES_POR_TIPO, DIAS_VENCIMIENTO
 - `src/data/tablaIR.js` — Tablas IR 2025 hardcodeadas (progresiva general, RIMPE Emprendedor, RIMPE Negocio Popular) + `calcularIR(ingresos, deducibles, tipo)` + `tasaMarginalIR(base)`. ⚠️ Verificar valores RIMPE en sri.gob.ec antes de producción.
 - `supabase/functions/gmail-sync/index.ts` — Edge function (Gmail sync + XML parsing + AI categorization)
+- `supabase/functions/enviar-recordatorios/index.ts` — Edge function (email reminders via Resend). Secrets: `RESEND_API_KEY`, `APP_URL`.
 
 #### Hooks
-- `src/hooks/usePerfil.js` — Reads/writes `perfil` table. Returns `{ perfil, tipoContribuyente, regimen, novenoDigitoRuc, onboardingCompletado, loading, savePerfil, updatePerfil, refetch }`. `perfil` incluye `ingresoMensualDependencia` (sueldo neto mensual para tipos dependencia).
+- `src/hooks/usePerfil.js` — Reads/writes `perfil` table. Returns `{ perfil, tipoContribuyente, regimen, novenoDigitoRuc, onboardingCompletado, loading, savePerfil, updatePerfil, refetch }`. `perfil` incluye `ingresoMensualDependencia` (sueldo neto mensual para tipos dependencia), `notificacionesEmail` (bool), `diasAnticipacion` (int, default 7), `emailNotificaciones` (text).
 - `src/hooks/useObligaciones.js` — Generates obligations list with due dates from 9th RUC digit. Returns `{ obligaciones, loading }`
 - `src/hooks/useIsMobile.js` — Returns boolean, breakpoint at 768px
 
@@ -76,14 +78,14 @@ Supabase Edge Function (gmail-sync, Deno/TypeScript)
 
 #### Pages
 - `src/pages/DashboardPage.jsx` — Stats, upcoming obligations widget, recent invoices, top categories. **TODO 3:** widget amarillo debajo de obligaciones urgentes si hay facturas sin clasificar del año AGP (`sinClasificarAgp`), navega a GastosPersonalesPage. El map de facturas incluye `esVenta: f.es_venta` para filtrar correctamente. **TODO 4:** incluye `<ProyeccionIRWidget>` en la columna izquierda (debajo del AGP banner, arriba de facturas recientes).
-- `src/pages/ObligacionesPage.jsx` — TarjetaPerfilTributario + obligations grouped by urgency. **TODO 3:** carga recuento de facturas sin clasificar del año AGP y estado de `declaraciones_agp`; enriquece la obligación AGP con `ctaLabel` dinámico ("Clasificar mis facturas (N pendientes)" / "Ver resumen y generar formularios" / "Ver detalle") y sobreescribe `estado` a `"presentada"` si corresponde.
+- `src/pages/ObligacionesPage.jsx` — TarjetaPerfilTributario + obligations grouped by urgency. **TODO 3:** carga recuento de facturas sin clasificar del año AGP y estado de `declaraciones_agp`; enriquece la obligación AGP con `ctaLabel` dinámico ("Clasificar mis facturas (N pendientes)" / "Ver resumen y generar formularios" / "Ver detalle") y sobreescribe `estado` a `"presentada"` si corresponde. **TODO 7:** toggle Lista/Calendario en el header (solo visible cuando hay obligaciones); vista calendario usa `<CalendarioObligaciones>`.
 - `src/pages/ObligacionDetallePage.jsx` — Detail view with route protection (redirects if tipo doesn't match tipoContribuyente)
 - `src/pages/IvaDeclaracionPage.jsx` — **TODO 1** Declaración mensual IVA (Form 104). Aplica a: `dependencia_con_extras`, `freelancer_general`, `arrendador_general`. Carga compras (es_venta=null/false) y ventas (es_venta=true) del período, calcula IVA, modal Form 104 pre-llenado. Guarda en `declaraciones_iva` con `tipo='mensual'`, `periodo='YYYY-MM'`.
 - `src/pages/IvaSemestralPage.jsx` — **TODO 2** Declaración semestral IVA (Form 104-A). Solo para `rimpe_emprendedor`. Período: S1 = enero–junio (vence julio), S2 = julio–diciembre (vence enero año siguiente). Incluye: tabla desglosada mes a mes (ventas base, IVA cobrado, compras total, IVA pagado, saldo mensual), gráfico de barras recharts (Ventas vs Compras por mes), totales consolidados, modal Form 104-A pre-llenado, marcar como presentada. Guarda en `declaraciones_iva` con `tipo='semestral'`, `periodo='YYYY-S1'` o `'YYYY-S2'`.
 - `src/pages/GastosPersonalesPage.jsx` — **TODO 3** ✅ AGP completo en `/obligaciones/gastos-personales/:anio`. 4 secciones: (1) facturas sin clasificar del año — 5 botones de categoría + "No es gasto personal", clasifican en Supabase con animación fade-out; (2) resumen por categoría (Salud/Educación/Alimentación/Vivienda/Vestimenta) con totales y barra de progreso hacia el límite `min(50% ingresos brutos, $15,817)`; (3) ahorro estimado = efectivo × 15% + motivacional si hay pendientes; (4) botones Formulario GP / Anexo GSP / Generar ambos, instrucciones paso a paso, "Marcar como presentada" (modal con fecha) → upsert en `declaraciones_agp`. Ingresos brutos = `salario × 12 + totalVentas` del año.
 - `src/pages/FacturasPage.jsx` — **TODO 6 ✅** Dos tabs: "Compras" (`es_venta=false/null`, funcionalidad existente + filtro corregido) y "Ventas" (`es_venta=true`). `dependencia_pura` ve solo Compras. Tab Ventas: (1) banner resumen mensual con total+conteo → clickeable al módulo IVA del mes, (2) selectores mes/año + botón "Agregar ingreso", (3) lista con columnas cliente/descripción/fecha/base/IVA%/total/estado. Estado de cobro togglable inline. Modal 3 opciones: XML (parsearXMLVenta.js → preview → guardar), manual (fecha, n°, cliente, RUC, desc, subtotal, IVA selector 0%/15%, total auto, estado), rápido (fecha, desc, monto). Usa `crypto.randomUUID()` como clave_acceso para entradas manuales.
 - `src/pages/HistorialPage.jsx` — Placeholder "Próximamente"
-- `src/pages/AjustesPage.jsx` — **TODO 3 ✅** Simplificado: solo tipo contribuyente card + datos personales + cargas + Gmail sync. Eliminada la sección "Declaración anual" (botones GP/GSP) y el resumen estimado. **TODO 4:** campo "Sueldo neto mensual (después de IESS)" visible solo para `dependencia_pura` y `dependencia_con_extras`.
+- `src/pages/AjustesPage.jsx` — **TODO 3 ✅** Simplificado: solo tipo contribuyente card + datos personales + cargas + Gmail sync. Eliminada la sección "Declaración anual" (botones GP/GSP) y el resumen estimado. **TODO 4:** campo "Sueldo neto mensual (después de IESS)" visible solo para `dependencia_pura` y `dependencia_con_extras`. **TODO 7:** sección `<NotificacionesSection>` con toggle activar/desactivar, selector de anticipación (1/3/7/15 días) y campo email alternativo — guarda en `perfil` vía `savePerfil()`.
 - `src/pages/ProyeccionIRPage.jsx` — **TODO 4 ✅** Página completa en `/proyeccion-ir` (sin menú, accesible desde widget). Secciones: desglose de ingresos (dependencia+ventas+otros), deducciones (AGP+gastos negocio), base imponible + IR estimado (dark card), simulador slider hasta $50k, comparación con/sin deducciones, nota especial para `dependencia_pura`. Usa `calcularIR()` de tablaIR.js. Fetchea facturas del año actual + `declaraciones_agp` del año anterior.
 - `src/pages/DeclaracionIRPage.jsx` — **TODO 5 ✅** Asistente guiado en `/obligaciones/renta/:anio`. Pasos variables por tipo: RIMPE=3 (ingresos→retenciones→resumen), `dependencia_pura`=4 (+gastos personales), demás=5 (+gastos negocio). Barra de progreso visual, auto-guarda borrador en `declaraciones_ir` al avanzar. Pre-llena desde facturas + AGP + perfil. Paso resumen: desglose en lenguaje simple, card resultado (IR a pagar o devolución), modales "Ver casillas Form. 102", "Instrucciones DIMM", "Marcar presentada". Genera y descarga `IR_[RUC]_[anio].xml` via `descargarArchivoIR()`. Para RIMPE: título "Declaración Renta RIMPE", cálculo sobre ingresos brutos, sin deducciones GP/negocio.
 
@@ -91,6 +93,7 @@ Supabase Edge Function (gmail-sync, Deno/TypeScript)
 - `src/components/Onboarding.jsx` — **TODO 4:** 5-step para dependencia: RUC → situación → **ingreso neto mensual** → noveno dígito. Para freelancer/negocio: RUC → situación → facturación → noveno dígito. Constantes `STEP_RUC=0, STEP_SITUACION=1, STEP_FACTURACION=2, STEP_NOVENO=3, STEP_INGRESO=4`. `progressIndex()` mapea step a progreso visual (0–3). `onComplete` incluye `ingresoMensualDependencia`.
 - `src/components/ProyeccionIRWidget.jsx` — **TODO 4 ✅** Widget compacto para dashboard. Props: `{ facturas, perfil, tipoContribuyente }`. Muestra: barra progreso del año (mes/12), ingresos acumulados, IR estimado anualizado. Link "Ver completo →" navega a `/proyeccion-ir`. Usa `calcularIR()` de tablaIR.js.
 - `src/components/ObligacionCard.jsx` — Card with 5 states (vencida/urgente/pendiente/futura/presentada). **TODO 3:** soporta `obligacion.ctaLabel` opcional: si presente, muestra un badge de texto junto al chevron (útil para el AGP card con mensaje dinámico).
+- `src/components/CalendarioObligaciones.jsx` — **TODO 7** Grid mensual lunes-primero. Props: `{ obligaciones }`. Puntos de color por estado (rojo/amarillo/gris/verde). Click en día con obligación → panel de detalle expandido con navegación. Navegación mes anterior/siguiente.
 - `src/components/TarjetaPerfilTributario.jsx` — Dark card showing contributor type, regime, detalle, and IVA obligation chip: "IVA Semestral" para `rimpe_emprendedor`, "IVA Mensual" para los demás con IVA, nada para los que no declaran IVA
 - `src/components/Icon.jsx` — Material Symbols icon wrapper
 - `src/components/ui.jsx` — Shared primitives: GreenBtn, Input, SectionLabel
@@ -103,7 +106,7 @@ Supabase Edge Function (gmail-sync, Deno/TypeScript)
 
 - **facturas** — `user_id, emisor, ruc, fecha, monto, categoria, es_deducible_sri, clave_acceso, fuente(gmail|manual|xml|rapido), es_venta(bool default false), tarifa_iva(numeric nullable), estado_cobro(text), cliente_nombre(text), cliente_ruc(text), numero_factura(text), descripcion(text)`. Upsert conflict key: `user_id,clave_acceso`. `monto` = importeTotal (total con IVA para compras de Gmail; base sin IVA para ventas manuales). `tarifa_iva`: null o >0 = gravada 15%, 0 = tarifa 0%. Para ventas: `emisor`=nombre del usuario, `cliente_nombre`=nombre del comprador.
 - **gmail_tokens** — `user_id, refresh_token, last_sync`
-- **perfil** — `user_id, cedula, nombre, salario_mensual, otros_ingresos, cargas_familiares, enfermedad_catastrofica, tipo_contribuyente, regimen, noveno_digito_ruc, onboarding_completado, ingreso_mensual_dependencia numeric(12,2)` *(campo TODO 4: sueldo neto mensual después de IESS, solo para dependencia_pura/dependencia_con_extras)*
+- **perfil** — `user_id, cedula, nombre, salario_mensual, otros_ingresos, cargas_familiares, enfermedad_catastrofica, tipo_contribuyente, regimen, noveno_digito_ruc, onboarding_completado, ingreso_mensual_dependencia numeric(12,2), notificaciones_email boolean default true, dias_anticipacion integer default 7, email_notificaciones text` *(TODO 4: ingreso_mensual_dependencia; TODO 7: campos de notificación)*
 - **declaraciones_iva** *(TODO 1 + 2)* — `id uuid pk, user_id, periodo, tipo(mensual|semestral), total_ventas, iva_ventas, total_compras, credito_tributario, valor_pagar(negativo=crédito a favor), fecha_vencimiento date, fecha_presentacion date, estado(pendiente|presentada|vencida), created_at`. UNIQUE(user_id, periodo). `periodo` = `'YYYY-MM'` para mensual, `'YYYY-S1'` / `'YYYY-S2'` para semestral. RLS: usuarios solo ven sus propias declaraciones.
 - **declaraciones_agp** *(TODO 3)* — `id uuid pk, user_id, anio_fiscal integer, total_salud, total_educacion, total_alimentacion, total_vivienda, total_vestimenta, total_deducible, ahorro_estimado, estado('borrador'|'presentada'), fecha_presentacion date, created_at`. UNIQUE(user_id, anio_fiscal). RLS.
 - **declaraciones_ir** *(TODO 5)* — `id uuid pk, user_id, anio_fiscal integer, ingresos_dependencia, ingresos_facturacion, ingresos_otros, gastos_deducibles_negocio, gastos_personales_salud, gastos_personales_educacion, gastos_personales_alimentacion, gastos_personales_vivienda, gastos_personales_vestimenta, base_imponible, ir_causado, retenciones_recibidas, anticipos_pagados, ir_a_pagar, estado('borrador'|'presentada'), fecha_presentacion date, created_at`. UNIQUE(user_id, anio_fiscal). RLS.
@@ -121,6 +124,20 @@ Supabase Edge Function (gmail-sync, Deno/TypeScript)
 > -- Perfil: campo ingreso dependencia (TODO 4)
 > ALTER TABLE perfil
 >   ADD COLUMN IF NOT EXISTS ingreso_mensual_dependencia numeric(12,2);
+>
+> -- Perfil: campos notificaciones email (TODO 7)
+> ALTER TABLE perfil
+>   ADD COLUMN IF NOT EXISTS notificaciones_email boolean DEFAULT true,
+>   ADD COLUMN IF NOT EXISTS dias_anticipacion integer DEFAULT 7,
+>   ADD COLUMN IF NOT EXISTS email_notificaciones text;
+>
+> -- Cron diario para recordatorios (TODO 7) — requiere pg_cron + pg_net activados en Supabase Dashboard
+> -- Ejecutar en SQL Editor con los valores reales de project ref y service_role key:
+> SELECT cron.schedule('recordatorios-diarios', '0 13 * * *',
+>   $$SELECT net.http_post(
+>     url:='https://<PROJECT-REF>.supabase.co/functions/v1/enviar-recordatorios',
+>     headers:='{"Authorization":"Bearer <SERVICE-ROLE-KEY>","Content-Type":"application/json"}'::jsonb
+>   ) AS request_id$$);
 >
 > -- Perfil: campos de onboarding (ya aplicado si el onboarding funciona)
 > ALTER TABLE perfil
@@ -249,6 +266,8 @@ SRI JSON upload format: `{ "detallesDeclaracion": { "3310": "5760", ... } }` —
   - **Integración con otros módulos**: las ventas de TODO 6 alimentan automáticamente IvaDeclaracionPage e IvaSemestralPage (ya usan `es_venta=true`), ProyeccionIRPage (`ingresos_facturacion`), y el límite AGP (`ingresosAnuales = salario*12 + totalVentas`). No se requiere cambio en esos módulos.
 - **Edge function categorization** — regex rules first, Claude Haiku API fallback for unmatched items
 - **SRI XML parsing** — handles CDATA, HTML-encoded (`&lt;`), and direct XML formats
+- **Calendario de obligaciones (TODO 7)** — `CalendarioObligaciones` recibe `obligaciones[]` del hook `useObligaciones()` ya enriquecidas. Construye `mapaObs` como `"YYYY-MM-DD" → [ob, ...]`. El color del punto usa prioridad: vencida > urgente > pendiente > presentada > futura. Grid lunes-primero: `offsetInicio = (getDay() + 6) % 7`.
+- **Email reminders (TODO 7)** — `enviar-recordatorios` replica la lógica de `useObligaciones` en Deno puro (sin React). Condition de envío: `diasHasta(vencimiento, hoy) === dias_anticipacion`. Sin noveno_digito_ruc → día 10 como fallback para todas las obligaciones. Secrets: `RESEND_API_KEY`, `APP_URL`. Cron: `0 13 * * *` UTC = 8am Ecuador.
 
 ## Branding
 
@@ -263,3 +282,5 @@ Required in Supabase Dashboard (Settings → Edge Functions → Secrets):
 - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` — for Gmail OAuth token refresh
 - `ANTHROPIC_API_KEY` — for Claude Haiku fallback categorization
 - `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` — auto-set by Supabase
+- `RESEND_API_KEY` — for email reminders via Resend (TODO 7)
+- `APP_URL` — production URL, e.g. `https://lemontax.vercel.app` (TODO 7, used in email CTAs)

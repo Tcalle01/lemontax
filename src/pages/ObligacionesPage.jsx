@@ -3,6 +3,7 @@ import { C } from "../theme";
 import Icon from "../components/Icon";
 import ObligacionCard from "../components/ObligacionCard";
 import TarjetaPerfilTributario from "../components/TarjetaPerfilTributario";
+import CalendarioObligaciones from "../components/CalendarioObligaciones";
 import { useObligaciones } from "../hooks/useObligaciones";
 import { usePerfil } from "../hooks/usePerfil";
 import { useAuth } from "../auth";
@@ -14,6 +15,7 @@ export default function ObligacionesPage() {
   const { user } = useAuth();
   const [sinClasificarCount, setSinClasificarCount] = useState(0);
   const [agpPresentada, setAgpPresentada] = useState(false);
+  const [vista, setVista] = useState("lista"); // "lista" | "calendario"
 
   useEffect(() => {
     if (!user) return;
@@ -67,9 +69,51 @@ export default function ObligacionesPage() {
 
   return (
     <div style={{ padding: 32, overflowY: "auto" }}>
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ color: C.text, fontSize: 24, fontWeight: 800, fontFamily: "Syne, sans-serif" }}>Mis Obligaciones</h1>
-        <p style={{ color: C.textMid, fontSize: 13, marginTop: 4 }}>Tus obligaciones tributarias personalizadas</p>
+      {/* ── Header ── */}
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24 }}>
+        <div>
+          <h1 style={{ color: C.text, fontSize: 24, fontWeight: 800, fontFamily: "Syne, sans-serif" }}>Mis Obligaciones</h1>
+          <p style={{ color: C.textMid, fontSize: 13, marginTop: 4 }}>Tus obligaciones tributarias personalizadas</p>
+        </div>
+
+        {/* ── Vista toggle ── */}
+        {tipoContribuyente && enrichedObligaciones.length > 0 && (
+          <div style={{
+            display: "flex", background: C.surface, border: `1px solid ${C.border}`,
+            borderRadius: 10, padding: 3, gap: 2,
+          }}>
+            <button
+              onClick={() => setVista("lista")}
+              style={{
+                display: "flex", alignItems: "center", gap: 6,
+                padding: "7px 14px", borderRadius: 8, border: "none", cursor: "pointer",
+                background: vista === "lista" ? C.white : "transparent",
+                color: vista === "lista" ? C.green : C.textMid,
+                fontSize: 12, fontWeight: 700, fontFamily: "DM Sans, sans-serif",
+                boxShadow: vista === "lista" ? "0 1px 4px rgba(0,0,0,0.08)" : "none",
+                transition: "all 0.15s",
+              }}
+            >
+              <Icon name="format_list_bulleted" color={vista === "lista" ? C.green : C.textMid} size={16} />
+              Lista
+            </button>
+            <button
+              onClick={() => setVista("calendario")}
+              style={{
+                display: "flex", alignItems: "center", gap: 6,
+                padding: "7px 14px", borderRadius: 8, border: "none", cursor: "pointer",
+                background: vista === "calendario" ? C.white : "transparent",
+                color: vista === "calendario" ? C.green : C.textMid,
+                fontSize: 12, fontWeight: 700, fontFamily: "DM Sans, sans-serif",
+                boxShadow: vista === "calendario" ? "0 1px 4px rgba(0,0,0,0.08)" : "none",
+                transition: "all 0.15s",
+              }}
+            >
+              <Icon name="calendar_month" color={vista === "calendario" ? C.green : C.textMid} size={16} />
+              Calendario
+            </button>
+          </div>
+        )}
       </div>
 
       <TarjetaPerfilTributario />
@@ -80,13 +124,19 @@ export default function ObligacionesPage() {
           <p style={{ color: C.text, fontSize: 14, fontWeight: 700, marginTop: 16, marginBottom: 8 }}>Sin perfil tributario configurado</p>
           <p style={{ color: C.textMid, fontSize: 13 }}>Completa tu perfil para ver tus obligaciones personalizadas.</p>
         </div>
-      ) : obligaciones.length === 0 ? (
+      ) : enrichedObligaciones.length === 0 ? (
         <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16, padding: 32, textAlign: "center" }}>
           <Icon name="check_circle" color={C.greenAccent} size={40} />
           <p style={{ color: C.text, fontSize: 14, fontWeight: 700, marginTop: 16, marginBottom: 8 }}>Todo al día</p>
           <p style={{ color: C.textMid, fontSize: 13 }}>No tienes obligaciones pendientes por ahora.</p>
         </div>
+      ) : vista === "calendario" ? (
+        /* ── Calendar view ── */
+        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 24, boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
+          <CalendarioObligaciones obligaciones={enrichedObligaciones} />
+        </div>
       ) : (
+        /* ── List view ── */
         <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
           {vencidasUrgentes.length > 0 && (
             <Section titulo="Requieren atención" color={C.red} iconName="warning">

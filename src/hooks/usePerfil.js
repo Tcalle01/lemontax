@@ -10,6 +10,9 @@ export function usePerfil() {
     enfermedadCatastrofica: false, tipoContribuyente: null, regimen: null,
     novenoDigitoRuc: null, onboardingCompletado: false,
     ingresoMensualDependencia: "",
+    notificacionesEmail: true,
+    diasAnticipacion: 7,
+    emailNotificaciones: "",
   });
   const [loading, setLoading] = useState(true);
 
@@ -36,6 +39,9 @@ export function usePerfil() {
           novenoDigitoRuc: data.noveno_digito_ruc || null,
           onboardingCompletado: data.onboarding_completado || false,
           ingresoMensualDependencia: data.ingreso_mensual_dependencia?.toString() || "",
+          notificacionesEmail: data.notificaciones_email !== false, // default true
+          diasAnticipacion: data.dias_anticipacion ?? 7,
+          emailNotificaciones: data.email_notificaciones || "",
           _id: data.id,
         });
       }
@@ -65,6 +71,9 @@ export function usePerfil() {
       noveno_digito_ruc: p.novenoDigitoRuc,
       onboarding_completado: p.onboardingCompletado,
       ingreso_mensual_dependencia: parseFloat(p.ingresoMensualDependencia) || null,
+      notificaciones_email: p.notificacionesEmail !== false,
+      dias_anticipacion: parseInt(p.diasAnticipacion) || 7,
+      email_notificaciones: p.emailNotificaciones || null,
     };
     try {
       if (p._id) {
