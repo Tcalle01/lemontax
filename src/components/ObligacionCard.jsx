@@ -103,7 +103,16 @@ export default function ObligacionCard({ obligacion, compact }) {
           )}
         </div>
         {!compact && config.cta && (
-          <div style={{ flexShrink: 0, alignSelf: "center" }}>
+          <div style={{ flexShrink: 0, alignSelf: "center", display: "flex", alignItems: "center", gap: 6 }}>
+            {obligacion.ctaLabel && (
+              <span style={{
+                fontSize: 11, fontWeight: 600, padding: "4px 10px", borderRadius: 6,
+                background: config.iconColor + "15", color: config.iconColor,
+                maxWidth: 180, textAlign: "right", lineHeight: 1.3,
+              }}>
+                {obligacion.ctaLabel}
+              </span>
+            )}
             <Icon name="chevron_right" color={C.textDim} size={20} />
           </div>
         )}

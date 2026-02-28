@@ -69,12 +69,17 @@ export default function DashboardPage() {
           setFacturas(data.map(f => ({
             id: f.id, emisor: f.emisor, ruc: f.ruc || "", fecha: f.fecha,
             monto: f.monto, categoria: f.categoria, sri: f.es_deducible_sri,
-            comprobantes: f.comprobantes || 1,
+            esVenta: f.es_venta, comprobantes: f.comprobantes || 1,
           })));
         }
         setLoading(false);
       });
   }, [user]);
+
+  const anioAgp = new Date().getFullYear() - 1;
+  const sinClasificarAgp = facturas.filter(
+    f => !f.esVenta && f.fecha?.startsWith(String(anioAgp)) && (!f.categoria || f.categoria === "")
+  );
 
   const total = facturas.reduce((a, b) => a + b.monto, 0);
   const deducible = facturas.filter(f => f.sri).reduce((a, b) => a + b.monto, 0);
@@ -148,6 +153,31 @@ export default function DashboardPage() {
                   <ObligacionCard key={o.id} obligacion={o} compact />
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* AGP: facturas sin clasificar */}
+          {onboardingCompletado && sinClasificarAgp.length > 0 && (
+            <div
+              onClick={() => navigate(`/obligaciones/gastos-personales/${anioAgp}`)}
+              style={{
+                background: C.yellow + "18", border: `1.5px solid ${C.yellow}60`,
+                borderRadius: 14, padding: "14px 18px",
+                cursor: "pointer", display: "flex", alignItems: "center", gap: 12,
+              }}
+            >
+              <Icon name="description" color="#D4A017" size={22} />
+              <div style={{ flex: 1 }}>
+                <p style={{ color: C.green, fontSize: 13, fontWeight: 700 }}>
+                  Tienes {sinClasificarAgp.length} factura{sinClasificarAgp.length !== 1 ? "s" : ""} sin clasificar
+                </p>
+                <p style={{ color: C.textMid, fontSize: 12, marginTop: 2 }}>
+                  Clasifícalas para maximizar tu rebaja en renta {anioAgp}
+                </p>
+              </div>
+              <span style={{ color: C.green, fontSize: 12, fontWeight: 700, flexShrink: 0 }}>
+                Clasificar ahora →
+              </span>
             </div>
           )}
 

@@ -1,34 +1,10 @@
 import { useState, useEffect } from "react";
-import { C, CANASTA, TIPOS_CONTRIBUYENTE } from "../theme";
+import { C, TIPOS_CONTRIBUYENTE } from "../theme";
 import Icon from "../components/Icon";
 import Onboarding from "../components/Onboarding";
 import { useAuth } from "../auth";
 import { usePerfil } from "../hooks/usePerfil";
 import { supabase } from "../supabase";
-import { generarFormularioGP, generarAnexoGSP } from "../sriExport";
-
-function calcLimite(salarioAnual, cargas) {
-  const canastas = [7, 9, 11, 14, 17, 20][Math.min(cargas, 5)];
-  return Math.min(CANASTA * canastas, salarioAnual * 0.20);
-}
-
-function calcRebaja(totalDeducible, salarioAnual, cargas) {
-  if (salarioAnual <= 11902) return 0;
-  const tramos = [
-    [11902, 15159, 0, 0.05], [15159, 19682, 162.85, 0.10],
-    [19682, 26031, 615.15, 0.12], [26031, 34255, 1376.83, 0.15],
-    [34255, 45407, 2610.43, 0.20], [45407, 60450, 4840.83, 0.25],
-    [60450, 80605, 8601.58, 0.30], [80605, Infinity, 14648.08, 0.35],
-  ];
-  let ir = 0;
-  for (const [min, max, base, rate] of tramos) {
-    if (salarioAnual > min) ir = base + (Math.min(salarioAnual, max) - min) * rate;
-  }
-  const limite = calcLimite(salarioAnual, cargas);
-  return Math.round((Math.min(totalDeducible, limite) / salarioAnual) * ir * 100) / 100;
-}
-
-function fmt(n) { return `$${n.toLocaleString("es-EC", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`; }
 
 const inputStyle = {
   width: "100%", padding: "10px 14px", background: C.surface,
@@ -57,22 +33,13 @@ export default function AjustesPage() {
   const [syncGmail, setSyncGmail] = useState("idle");
   const [syncResult, setSyncResult] = useState(null);
   const [lastSync, setLastSync] = useState(null);
-  const [facturas, setFacturas] = useState([]);
-  const [generando, setGenerando] = useState(false);
 
   useEffect(() => {
     if (!user) return;
-    Promise.all([
-      supabase.from("gmail_tokens").select("last_sync").eq("user_id", user.id).maybeSingle(),
-      supabase.from("facturas").select("*").eq("user_id", user.id).order("fecha", { ascending: false }),
-    ]).then(([{ data: tok }, { data: facs }]) => {
-      if (tok?.last_sync) setLastSync(new Date(tok.last_sync));
-      if (facs) setFacturas(facs.map(f => ({
-        id: f.id, emisor: f.emisor, ruc: f.ruc || "", fecha: f.fecha,
-        monto: f.monto, categoria: f.categoria, sri: f.es_deducible_sri,
-        comprobantes: f.comprobantes || 1,
-      })));
-    });
+    supabase.from("gmail_tokens").select("last_sync").eq("user_id", user.id).maybeSingle()
+      .then(({ data: tok }) => {
+        if (tok?.last_sync) setLastSync(new Date(tok.last_sync));
+      });
   }, [user]);
 
   const handleSave = async () => {
@@ -95,23 +62,7 @@ export default function AjustesPage() {
     }
   };
 
-  const catTotals = {};
-  facturas.filter(f => f.sri).forEach(f => { catTotals[f.categoria] = (catTotals[f.categoria] || 0) + f.monto; });
-  const totalDeducible = Object.values(catTotals).reduce((a, b) => a + b, 0);
-  const salarioAnual = parseFloat(perfil.salario || 0) * 12;
-  const cargas = parseInt(perfil.cargas || 0);
-  const rebaja = salarioAnual > 0 ? calcRebaja(totalDeducible, salarioAnual, cargas) : totalDeducible * 0.10;
-  const perfilValido = perfil.cedula && perfil.nombre && perfil.salario;
   const tipoMeta = TIPOS_CONTRIBUYENTE[perfil.tipoContribuyente] || null;
-
-  const handleGenerarAmbos = () => {
-    setGenerando(true);
-    setTimeout(() => {
-      generarFormularioGP({ perfil, facturas, rebaja, salarioAnual, cargas });
-      generarAnexoGSP({ perfil, facturas });
-      setGenerando(false);
-    }, 800);
-  };
 
   if (loading) return (
     <div style={{ padding: 32, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -231,24 +182,6 @@ export default function AjustesPage() {
               <div style={{ width: 18, height: 18, borderRadius: 9, background: C.white, position: "absolute", top: 3, left: perfil.enfermedadCatastrofica ? 23 : 3, transition: "all 0.2s" }} />
             </button>
           </div>
-          {salarioAnual > 0 && (
-            <div style={{ background: C.greenAccent + "10", border: `1px solid ${C.greenAccent}30`, borderRadius: 10, padding: "14px 16px", marginBottom: 20 }}>
-              <p style={{ color: C.greenAccent, fontSize: 12, fontWeight: 700, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
-                <Icon name="bar_chart" color={C.greenAccent} size={16} /> Resumen estimado
-              </p>
-              {[
-                ["Salario anual", fmt(salarioAnual)],
-                [`Límite deducible (${cargas} cargas)`, fmt(calcLimite(salarioAnual, cargas))],
-                ["Total gastos SRI", fmt(totalDeducible)],
-                ["Rebaja IR estimada", fmt(rebaja)],
-              ].map(([k, v]) => (
-                <div key={k} style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                  <span style={{ color: C.textMid, fontSize: 12 }}>{k}</span>
-                  <span style={{ color: C.text, fontSize: 12, fontWeight: 700 }}>{v}</span>
-                </div>
-              ))}
-            </div>
-          )}
           <button onClick={handleSave} disabled={syncStatus === "saving"} style={{
             width: "100%", padding: 13, borderRadius: 10, border: "none", cursor: syncStatus === "saving" ? "not-allowed" : "pointer",
             background: syncStatus === "saved" ? C.greenAccent : C.green, color: C.white,
@@ -314,34 +247,6 @@ export default function AjustesPage() {
         </div>
       </div>
 
-      {/* ─── Declaración ─── */}
-      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 24, boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
-        <p style={{ color: C.text, fontSize: 14, fontWeight: 700, marginBottom: 6 }}>Declaración anual</p>
-        <p style={{ color: C.textMid, fontSize: 12, marginBottom: 20, lineHeight: 1.6 }}>Genera tu Formulario GP y Anexo GSP listos para el portal del SRI. Necesitas tener cédula y nombre guardados.</p>
-        {!perfilValido ? (
-          <div style={{ background: C.yellowDim, border: `1px solid ${C.yellow}40`, borderRadius: 10, padding: "12px 16px", marginBottom: 16 }}>
-            <p style={{ color: C.green, fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 8 }}>
-              <Icon name="warning" color={C.green} size={16} /> Completa tu cédula, nombre y salario antes de generar
-            </p>
-          </div>
-        ) : null}
-        <div style={{ display: "flex", gap: 12 }}>
-          <button onClick={() => { if (!perfilValido || generando) return; setGenerando(true); setTimeout(() => { generarFormularioGP({ perfil, facturas, rebaja, salarioAnual, cargas }); setGenerando(false); }, 800); }}
-            disabled={!perfilValido || generando}
-            style={{ padding: "11px 22px", background: perfilValido ? C.green : C.border, color: perfilValido ? C.white : C.textDim, border: "none", borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: perfilValido ? "pointer" : "not-allowed", fontFamily: "DM Sans, sans-serif", display: "flex", alignItems: "center", gap: 8 }}>
-            <Icon name="download" color={perfilValido ? C.white : C.textDim} size={17} /> Formulario GP
-          </button>
-          <button onClick={() => { if (!perfilValido || generando) return; setGenerando(true); setTimeout(() => { generarAnexoGSP({ perfil, facturas }); setGenerando(false); }, 800); }}
-            disabled={!perfilValido || generando}
-            style={{ padding: "11px 22px", background: "transparent", color: C.green, border: `2px solid ${C.border}`, borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: perfilValido ? "pointer" : "not-allowed", fontFamily: "DM Sans, sans-serif", display: "flex", alignItems: "center", gap: 8 }}>
-            <Icon name="download" color={C.green} size={17} /> Anexo GSP
-          </button>
-          <button onClick={handleGenerarAmbos} disabled={!perfilValido || generando}
-            style={{ padding: "11px 22px", background: "transparent", color: C.textMid, border: `1px solid ${C.border}`, borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: perfilValido ? "pointer" : "not-allowed", fontFamily: "DM Sans, sans-serif" }}>
-            {generando ? "Generando..." : "Generar ambos"}
-          </button>
-        </div>
-      </div>
     </div>
   );
 }

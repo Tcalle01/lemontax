@@ -1,18 +1,63 @@
+import { useState, useEffect } from "react";
 import { C } from "../theme";
 import Icon from "../components/Icon";
 import ObligacionCard from "../components/ObligacionCard";
 import TarjetaPerfilTributario from "../components/TarjetaPerfilTributario";
 import { useObligaciones } from "../hooks/useObligaciones";
 import { usePerfil } from "../hooks/usePerfil";
+import { useAuth } from "../auth";
+import { supabase } from "../supabase";
 
 export default function ObligacionesPage() {
   const { obligaciones, loading } = useObligaciones();
   const { tipoContribuyente } = usePerfil();
+  const { user } = useAuth();
+  const [sinClasificarCount, setSinClasificarCount] = useState(0);
+  const [agpPresentada, setAgpPresentada] = useState(false);
 
-  const vencidasUrgentes = obligaciones.filter(o => o.estado === "vencida" || o.estado === "urgente");
-  const pendientes = obligaciones.filter(o => o.estado === "pendiente");
-  const futuras = obligaciones.filter(o => o.estado === "futura");
-  const presentadas = obligaciones.filter(o => o.estado === "presentada");
+  useEffect(() => {
+    if (!user) return;
+    const anioAgp = new Date().getFullYear() - 1;
+    Promise.allSettled([
+      supabase.from("facturas")
+        .select("id, categoria, es_venta, fecha")
+        .eq("user_id", user.id)
+        .gte("fecha", `${anioAgp}-01-01`)
+        .lte("fecha", `${anioAgp}-12-31`),
+      supabase.from("declaraciones_agp")
+        .select("estado")
+        .eq("user_id", user.id)
+        .eq("anio_fiscal", anioAgp)
+        .maybeSingle(),
+    ]).then(([facRes, decRes]) => {
+      if (facRes.status === "fulfilled" && facRes.value.data) {
+        const count = facRes.value.data.filter(
+          f => f.es_venta !== true && (!f.categoria || f.categoria === "")
+        ).length;
+        setSinClasificarCount(count);
+      }
+      if (decRes.status === "fulfilled" && decRes.value.data?.estado === "presentada") {
+        setAgpPresentada(true);
+      }
+    });
+  }, [user]);
+
+  // Enrich AGP obligation with dynamic CTA label and estado
+  const enrichedObligaciones = obligaciones.map(o => {
+    if (o.tipo !== "agp") return o;
+    const ctaLabel = agpPresentada
+      ? "Ver detalle"
+      : sinClasificarCount > 0
+      ? `Clasificar mis facturas (${sinClasificarCount} pendientes)`
+      : "Ver resumen y generar formularios";
+    const estado = agpPresentada ? "presentada" : o.estado;
+    return { ...o, ctaLabel, estado };
+  });
+
+  const vencidasUrgentes = enrichedObligaciones.filter(o => o.estado === "vencida" || o.estado === "urgente");
+  const pendientes = enrichedObligaciones.filter(o => o.estado === "pendiente");
+  const futuras = enrichedObligaciones.filter(o => o.estado === "futura");
+  const presentadas = enrichedObligaciones.filter(o => o.estado === "presentada");
 
   if (loading) return (
     <div style={{ padding: 32, display: "flex", alignItems: "center", justifyContent: "center" }}>

@@ -9,6 +9,9 @@ import MobileLayout from "./layouts/MobileLayout";
 import DashboardPage from "./pages/DashboardPage";
 import ObligacionesPage from "./pages/ObligacionesPage";
 import ObligacionDetallePage from "./pages/ObligacionDetallePage";
+import IvaDeclaracionPage from "./pages/IvaDeclaracionPage";
+import IvaSemestralPage from "./pages/IvaSemestralPage";
+import GastosPersonalesPage from "./pages/GastosPersonalesPage";
 import FacturasPage from "./pages/FacturasPage";
 import HistorialPage from "./pages/HistorialPage";
 import AjustesPage from "./pages/AjustesPage";
@@ -57,6 +60,9 @@ function AppContent() {
         <Route element={<Layout />}>
           <Route index element={<DashboardPage />} />
           <Route path="/obligaciones" element={<ObligacionesPage />} />
+          <Route path="/obligaciones/iva/:year/:mes" element={<IvaDeclaracionPage />} />
+          <Route path="/obligaciones/iva-semestral/:anio/:semestre" element={<IvaSemestralPage />} />
+          <Route path="/obligaciones/gastos-personales/:anio" element={<GastosPersonalesPage />} />
           <Route path="/obligaciones/:tipo/:year/:periodo" element={<ObligacionDetallePage />} />
           <Route path="/obligaciones/:tipo/:year" element={<ObligacionDetallePage />} />
           <Route path="/facturas" element={<FacturasPage />} />
