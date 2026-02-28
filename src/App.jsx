@@ -17,6 +17,7 @@ import HistorialPage from "./pages/HistorialPage";
 import AjustesPage from "./pages/AjustesPage";
 import ProyeccionIRPage from "./pages/ProyeccionIRPage";
 import DeclaracionIRPage from "./pages/DeclaracionIRPage";
+import CuantoDeboPage from "./pages/CuantoDeboPage";
 
 function LoadingScreen() {
   return (
@@ -68,6 +69,7 @@ function AppContent() {
           <Route path="/obligaciones/renta/:anio" element={<DeclaracionIRPage />} />
           <Route path="/obligaciones/:tipo/:year/:periodo" element={<ObligacionDetallePage />} />
           <Route path="/obligaciones/:tipo/:year" element={<ObligacionDetallePage />} />
+          <Route path="/cuanto-debo" element={<CuantoDeboPage />} />
           <Route path="/proyeccion-ir" element={<ProyeccionIRPage />} />
           <Route path="/facturas" element={<FacturasPage />} />
           <Route path="/historial" element={<HistorialPage />} />

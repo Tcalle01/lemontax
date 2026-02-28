@@ -38,6 +38,7 @@ Browser (React 19 + Vite 7)
   │           ├── /obligaciones/gastos-personales/:anio → GastosPersonalesPage   ← ídem
   │           ├── /obligaciones/renta/:anio → DeclaracionIRPage                 ← ídem
   │           ├── /obligaciones/:tipo/:year/:periodo → ObligacionDetallePage
+  │           ├── /cuanto-debo → CuantoDeboPage  ← accesible desde banner dashboard cuando hay vencidas
   │           ├── /proyeccion-ir → ProyeccionIRPage  ← sin menú, accesible desde widget dashboard
   │           ├── /facturas → FacturasPage
   │           ├── /historial → HistorialPage
@@ -58,6 +59,7 @@ Supabase Edge Functions (Deno/TypeScript)
 - `src/App.jsx` — Root: AuthProvider + onboarding gate + BrowserRouter + Routes
 - `src/auth.jsx` — AuthContext: Google OAuth, triggerSync(), session management
 - `src/LoginScreen.jsx` — Google login screen
+- `src/utils/mora.js` — `calcularMora(params)` + `proximoAumentoMora(diasMora)`. Calcula multas (Art. 100 LRTI) e intereses (Art. 21 CT) por mora. Tipos: `iva_mensual`, `iva_semestral`, `ir_anual`, `ir_anual_rimpe`, `agp`. Retorna `{ diasMora, mesesMora, multa, intereses, totalMora, totalAPagar, detalleMulta, detalleInteres, desconocido }`. `desconocido=true` cuando no hay datos suficientes (IR sin impuesto causado ni ingresos brutos). `CONFIG_SRI_DEFAULTS` exportado con tasas Q1-2025.
 - `src/utils/parsearXMLVenta.js` — Browser-side XML parser for SRI sales invoices (facturas emitidas). `parsearXMLVenta(xmlText)` → `{ emisor, ruc, fecha, numeroFactura, claveAcceso, clienteNombre, clienteRuc, subtotal, tarifaIva, total, descripcion }`. Handles CDATA, HTML-encoded, and direct XML. Only accepts codDoc=01 (facturas). Returns null if invalid.
 - `src/sriExport.js` — Excel generation (Formulario GP + Anexo GSP) using SheetJS
 - `src/utils/generarArchivoIR.js` — XML generation for DIMM Formularios (Form 102). `generarArchivoIR(declaracion, perfil, tipoContribuyente)` + `descargarArchivoIR(...)` trigger descarga `IR_[RUC]_[anio].xml`
@@ -68,6 +70,7 @@ Supabase Edge Functions (Deno/TypeScript)
 - `supabase/functions/enviar-recordatorios/index.ts` — Edge function (email reminders via Resend). Secrets: `RESEND_API_KEY`, `APP_URL`.
 
 #### Hooks
+- `src/hooks/useConfiguracionSRI.js` — Lee tabla `configuracion_sri` (id=1) con fallback a `CONFIG_SRI_DEFAULTS`. Returns `{ config, loading }`. La app funciona sin la tabla — usa defaults hardcodeados Q1-2025 (0.869%/mes voluntaria, 1.130%/mes notificado).
 - `src/hooks/usePerfil.js` — Reads/writes `perfil` table. Returns `{ perfil, tipoContribuyente, regimen, novenoDigitoRuc, onboardingCompletado, loading, savePerfil, updatePerfil, refetch }`. `perfil` incluye `ingresoMensualDependencia` (sueldo neto mensual para tipos dependencia), `notificacionesEmail` (bool), `diasAnticipacion` (int, default 7), `emailNotificaciones` (text).
 - `src/hooks/useObligaciones.js` — Generates obligations list with due dates from 9th RUC digit. Returns `{ obligaciones, loading }`
 - `src/hooks/useIsMobile.js` — Returns boolean, breakpoint at 768px
@@ -77,8 +80,9 @@ Supabase Edge Functions (Deno/TypeScript)
 - `src/layouts/MobileLayout.jsx` — Phone frame, status bar, bottom tab bar
 
 #### Pages
-- `src/pages/DashboardPage.jsx` — Stats, upcoming obligations widget, recent invoices, top categories. **TODO 3:** widget amarillo debajo de obligaciones urgentes si hay facturas sin clasificar del año AGP (`sinClasificarAgp`), navega a GastosPersonalesPage. El map de facturas incluye `esVenta: f.es_venta` para filtrar correctamente. **TODO 4:** incluye `<ProyeccionIRWidget>` en la columna izquierda (debajo del AGP banner, arriba de facturas recientes).
-- `src/pages/ObligacionesPage.jsx` — TarjetaPerfilTributario + obligations grouped by urgency. **TODO 3:** carga recuento de facturas sin clasificar del año AGP y estado de `declaraciones_agp`; enriquece la obligación AGP con `ctaLabel` dinámico ("Clasificar mis facturas (N pendientes)" / "Ver resumen y generar formularios" / "Ver detalle") y sobreescribe `estado` a `"presentada"` si corresponde. **TODO 7:** toggle Lista/Calendario en el header (solo visible cuando hay obligaciones); vista calendario usa `<CalendarioObligaciones>`.
+- `src/pages/DashboardPage.jsx` — Stats, upcoming obligations widget, recent invoices, top categories. **TODO 3:** widget amarillo debajo de obligaciones urgentes si hay facturas sin clasificar del año AGP (`sinClasificarAgp`), navega a GastosPersonalesPage. El map de facturas incluye `esVenta: f.es_venta` para filtrar correctamente. **TODO 4:** incluye `<ProyeccionIRWidget>` en la columna izquierda (debajo del AGP banner, arriba de facturas recientes). **TODO 8:** banner rojo "Tienes N obligaciones vencidas" (`vencidasCount > 0`) encima del salary-warning → navega a `/cuanto-debo`.
+- `src/pages/ObligacionesPage.jsx` — TarjetaPerfilTributario + obligations grouped by urgency. **TODO 3:** carga recuento de facturas sin clasificar del año AGP y estado de `declaraciones_agp`; enriquece la obligación AGP con `ctaLabel` dinámico. **TODO 7:** toggle Lista/Calendario en el header; vista calendario usa `<CalendarioObligaciones>`. **TODO 8:** useEffect adicional que fetchea `declaraciones_iva`, `declaraciones_ir` y `facturas` ventas en paralelo → calcula mora con `calcularMora()` por cada vencida → `moraMap[ob.id]` → pasa como prop `mora` a `ObligacionCard`.
+- `src/pages/CuantoDeboPage.jsx` — **TODO 8 ✅** Página en `/cuanto-debo`. Card oscura con deuda total global + desglose por obligación vencida (impuesto + multa con detalle + intereses + total a pagar). Notas contextuales: AGP = multa fija no crece; IVA sin ventas = solo $30. Disclaimer legal con tasa vigente. Usa `useConfiguracionSRI()` + `calcularMora()` + fetch declaraciones/facturas ventas.
 - `src/pages/ObligacionDetallePage.jsx` — Detail view with route protection (redirects if tipo doesn't match tipoContribuyente)
 - `src/pages/IvaDeclaracionPage.jsx` — **TODO 1** Declaración mensual IVA (Form 104). Aplica a: `dependencia_con_extras`, `freelancer_general`, `arrendador_general`. Carga compras (es_venta=null/false) y ventas (es_venta=true) del período, calcula IVA, modal Form 104 pre-llenado. Guarda en `declaraciones_iva` con `tipo='mensual'`, `periodo='YYYY-MM'`.
 - `src/pages/IvaSemestralPage.jsx` — **TODO 2** Declaración semestral IVA (Form 104-A). Solo para `rimpe_emprendedor`. Período: S1 = enero–junio (vence julio), S2 = julio–diciembre (vence enero año siguiente). Incluye: tabla desglosada mes a mes (ventas base, IVA cobrado, compras total, IVA pagado, saldo mensual), gráfico de barras recharts (Ventas vs Compras por mes), totales consolidados, modal Form 104-A pre-llenado, marcar como presentada. Guarda en `declaraciones_iva` con `tipo='semestral'`, `periodo='YYYY-S1'` o `'YYYY-S2'`.
@@ -92,7 +96,7 @@ Supabase Edge Functions (Deno/TypeScript)
 #### Components
 - `src/components/Onboarding.jsx` — **TODO 4:** 5-step para dependencia: RUC → situación → **ingreso neto mensual** → noveno dígito. Para freelancer/negocio: RUC → situación → facturación → noveno dígito. Constantes `STEP_RUC=0, STEP_SITUACION=1, STEP_FACTURACION=2, STEP_NOVENO=3, STEP_INGRESO=4`. `progressIndex()` mapea step a progreso visual (0–3). `onComplete` incluye `ingresoMensualDependencia`.
 - `src/components/ProyeccionIRWidget.jsx` — **TODO 4 ✅** Widget compacto para dashboard. Props: `{ facturas, perfil, tipoContribuyente }`. Muestra: barra progreso del año (mes/12), ingresos acumulados, IR estimado anualizado. Link "Ver completo →" navega a `/proyeccion-ir`. Usa `calcularIR()` de tablaIR.js.
-- `src/components/ObligacionCard.jsx` — Card with 5 states (vencida/urgente/pendiente/futura/presentada). **TODO 3:** soporta `obligacion.ctaLabel` opcional: si presente, muestra un badge de texto junto al chevron (útil para el AGP card con mensaje dinámico).
+- `src/components/ObligacionCard.jsx` — Card with 5 states (vencida/urgente/pendiente/futura/presentada). **TODO 3:** soporta `obligacion.ctaLabel` opcional: si presente, muestra un badge de texto junto al chevron. **TODO 8:** prop `mora` opcional (objeto de `calcularMora()`); si presente y `estado="vencida"`, muestra panel rojo con desglose multa/intereses/total + fecha del próximo aumento. Si `mora.desconocido=true`, muestra aviso "completa tu declaración". En compact mode no muestra el panel.
 - `src/components/CalendarioObligaciones.jsx` — **TODO 7** Grid mensual lunes-primero. Props: `{ obligaciones }`. Puntos de color por estado (rojo/amarillo/gris/verde). Click en día con obligación → panel de detalle expandido con navegación. Navegación mes anterior/siguiente.
 - `src/components/TarjetaPerfilTributario.jsx` — Dark card showing contributor type, regime, detalle, and IVA obligation chip: "IVA Semestral" para `rimpe_emprendedor`, "IVA Mensual" para los demás con IVA, nada para los que no declaran IVA
 - `src/components/Icon.jsx` — Material Symbols icon wrapper
@@ -110,9 +114,27 @@ Supabase Edge Functions (Deno/TypeScript)
 - **declaraciones_iva** *(TODO 1 + 2)* — `id uuid pk, user_id, periodo, tipo(mensual|semestral), total_ventas, iva_ventas, total_compras, credito_tributario, valor_pagar(negativo=crédito a favor), fecha_vencimiento date, fecha_presentacion date, estado(pendiente|presentada|vencida), created_at`. UNIQUE(user_id, periodo). `periodo` = `'YYYY-MM'` para mensual, `'YYYY-S1'` / `'YYYY-S2'` para semestral. RLS: usuarios solo ven sus propias declaraciones.
 - **declaraciones_agp** *(TODO 3)* — `id uuid pk, user_id, anio_fiscal integer, total_salud, total_educacion, total_alimentacion, total_vivienda, total_vestimenta, total_deducible, ahorro_estimado, estado('borrador'|'presentada'), fecha_presentacion date, created_at`. UNIQUE(user_id, anio_fiscal). RLS.
 - **declaraciones_ir** *(TODO 5)* — `id uuid pk, user_id, anio_fiscal integer, ingresos_dependencia, ingresos_facturacion, ingresos_otros, gastos_deducibles_negocio, gastos_personales_salud, gastos_personales_educacion, gastos_personales_alimentacion, gastos_personales_vivienda, gastos_personales_vestimenta, base_imponible, ir_causado, retenciones_recibidas, anticipos_pagados, ir_a_pagar, estado('borrador'|'presentada'), fecha_presentacion date, created_at`. UNIQUE(user_id, anio_fiscal). RLS.
+- **configuracion_sri** *(TODO 8, opcional)* — `id integer pk default 1` (fila única), `tasa_mora_voluntaria_mensual numeric(6,4)`, `tasa_mora_notificado_mensual numeric(6,4)`, `trimestre_vigente text`, `multa_iva_voluntaria_con_ventas_pn numeric(5,4)`, `multa_iva_voluntaria_sin_ventas_pn numeric(8,2)`, `multa_ir_con_impuesto_porcentaje numeric(5,4)`, `multa_ir_sin_impuesto_porcentaje numeric(5,4)`, `multa_agp_no_obligado_contabilidad numeric(8,2)`, `multa_agp_obligado_contabilidad numeric(8,2)`. Sin RLS (lectura pública). Permite actualizar tasas BCE sin deploy. Si no existe, `useConfiguracionSRI` usa `CONFIG_SRI_DEFAULTS`.
 
 > **Required SQL migrations** (run in Supabase Dashboard → SQL Editor):
 > ```sql
+> -- Tabla configuracion_sri (TODO 8, opcional — app funciona sin ella con defaults hardcodeados)
+> CREATE TABLE IF NOT EXISTS configuracion_sri (
+>   id integer PRIMARY KEY DEFAULT 1,
+>   tasa_mora_voluntaria_mensual numeric(6,4) DEFAULT 0.869,
+>   tasa_mora_notificado_mensual numeric(6,4) DEFAULT 1.130,
+>   trimestre_vigente text DEFAULT 'Q1-2025',
+>   multa_iva_voluntaria_con_ventas_pn numeric(5,4) DEFAULT 0.001,
+>   multa_iva_voluntaria_sin_ventas_pn numeric(8,2) DEFAULT 30.00,
+>   multa_ir_con_impuesto_porcentaje numeric(5,4) DEFAULT 0.03,
+>   multa_ir_sin_impuesto_porcentaje numeric(5,4) DEFAULT 0.001,
+>   multa_agp_no_obligado_contabilidad numeric(8,2) DEFAULT 30.00,
+>   multa_agp_obligado_contabilidad numeric(8,2) DEFAULT 45.00,
+>   fecha_actualizacion date
+> );
+> -- Sin RLS: lectura pública. Insertar fila inicial:
+> INSERT INTO configuracion_sri (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
+>
 > -- Facturas: campos para ventas (TODO 6)
 > ALTER TABLE facturas
 >   ADD COLUMN IF NOT EXISTS estado_cobro text,        -- 'cobrado' | 'pendiente'
@@ -268,6 +290,9 @@ SRI JSON upload format: `{ "detallesDeclaracion": { "3310": "5760", ... } }` —
 - **SRI XML parsing** — handles CDATA, HTML-encoded (`&lt;`), and direct XML formats
 - **Calendario de obligaciones (TODO 7)** — `CalendarioObligaciones` recibe `obligaciones[]` del hook `useObligaciones()` ya enriquecidas. Construye `mapaObs` como `"YYYY-MM-DD" → [ob, ...]`. El color del punto usa prioridad: vencida > urgente > pendiente > presentada > futura. Grid lunes-primero: `offsetInicio = (getDay() + 6) % 7`.
 - **Email reminders (TODO 7)** — `enviar-recordatorios` replica la lógica de `useObligaciones` en Deno puro (sin React). Condition de envío: `diasHasta(vencimiento, hoy) === dias_anticipacion`. Sin noveno_digito_ruc → día 10 como fallback para todas las obligaciones. Secrets: `RESEND_API_KEY`, `APP_URL`. Cron: `0 13 * * *` UTC = 8am Ecuador.
+- **Mora calculation (TODO 8)** — `calcularMora()` en `src/utils/mora.js`. Reglas: IVA con ventas = 0.1% × meses; IVA sin ventas = $30 fijo; IR con impuesto = 3% × meses (tope 100% del impuesto); IR sin impuesto = 0.1% ingresos brutos × meses (tope 5%); AGP = $30 fijo. Intereses solo si `impuestoCausado > 0`. La mora se calcula en tiempo real al renderizar, nunca se guarda en base de datos. `desconocido=true` para IR cuando no hay impuesto causado ni ingresos brutos conocidos. `proximoAumentoMora(diasMora)` → fecha del próximo escalón (cada 30 días).
+- **mora periodo key mapping** — IVA mensual: `ob.id = "iva_mensual_YYYY_MM"` → `periodoKey = "YYYY-MM"` (`.replace("iva_mensual_", "").replace("_", "-")`). IVA semestral: `ob.id = "iva_semestral_YYYY_S1"` → `periodoKey = "YYYY-S1"` (`parts[2] + "-" + parts[3]`). IR anual: `anioFiscal = parseInt(ob.id.split("_").pop())`.
+- **CuantoDeboPage data flow** — usa `useObligaciones()` filtrado a vencidas → `Promise.allSettled([declaraciones_iva, declaraciones_ir, facturas ventas])` → construye `ventasPorMes` y `ventasPorAnio` de facturas → `calcularMora()` por cada vencida → estado local `items[]`.
 
 ## Branding
 

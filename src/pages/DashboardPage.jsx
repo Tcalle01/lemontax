@@ -94,6 +94,7 @@ export default function DashboardPage() {
 
   // Top 3 most urgent obligations (not futura)
   const urgentObligaciones = obligaciones.filter(o => o.estado !== "futura" && o.estado !== "presentada").slice(0, 3);
+  const vencidasCount = obligaciones.filter(o => o.estado === "vencida").length;
 
   if (loading) return (
     <div style={{ padding: 32, display: "flex", alignItems: "center", justifyContent: "center", flex: 1 }}>
@@ -117,6 +118,33 @@ export default function DashboardPage() {
             <p style={{ color: C.green, fontSize: 12, opacity: 0.7 }}>Configurar ahora, toma 1 minuto</p>
           </div>
           <Icon name="chevron_right" color={C.green} size={20} />
+        </div>
+      )}
+
+      {/* Vencidas — ¿Cuánto debo? banner */}
+      {onboardingCompletado && vencidasCount > 0 && (
+        <div
+          onClick={() => navigate("/cuanto-debo")}
+          style={{
+            background: C.red + "0E", border: `1.5px solid ${C.red}40`,
+            borderRadius: 12, padding: "14px 18px", marginBottom: 16,
+            display: "flex", alignItems: "center", gap: 12, cursor: "pointer",
+          }}
+        >
+          <div style={{ width: 36, height: 36, borderRadius: 10, background: C.red + "18", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <Icon name="error" color={C.red} size={22} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <p style={{ color: C.red, fontSize: 13, fontWeight: 700 }}>
+              Tienes {vencidasCount} obligación{vencidasCount !== 1 ? "es" : ""} vencida{vencidasCount !== 1 ? "s" : ""}
+            </p>
+            <p style={{ color: C.textMid, fontSize: 12, marginTop: 2 }}>
+              La mora sigue creciendo — calcula cuánto debes hoy
+            </p>
+          </div>
+          <span style={{ color: C.red, fontSize: 12, fontWeight: 700, flexShrink: 0 }}>
+            Ver mora →
+          </span>
         </div>
       )}
 

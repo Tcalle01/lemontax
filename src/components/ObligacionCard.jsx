@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { C } from "../theme";
 import Icon from "./Icon";
+import { proximoAumentoMora } from "../utils/mora";
 
 const estadoConfig = {
   vencida: {
@@ -55,12 +56,21 @@ const estadoConfig = {
   },
 };
 
-export default function ObligacionCard({ obligacion, compact }) {
+function fmt(n) {
+  return `$${Number(n).toLocaleString("es-EC", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+export default function ObligacionCard({ obligacion, compact, mora }) {
   const navigate = useNavigate();
   const config = estadoConfig[obligacion.estado] || estadoConfig.pendiente;
   const fechaStr = obligacion.fechaVencimiento.toLocaleDateString("es-EC", {
     day: "numeric", month: "long", year: "numeric",
   });
+
+  const showMora = !compact && obligacion.estado === "vencida" && mora;
+  const proxAumento = showMora && mora.diasMora > 0
+    ? proximoAumentoMora(mora.diasMora)
+    : null;
 
   return (
     <div
@@ -93,15 +103,58 @@ export default function ObligacionCard({ obligacion, compact }) {
             {obligacion.estado === "vencida"
               ? `Venció el ${fechaStr} · ${Math.abs(obligacion.diasRestantes)} días de mora`
               : obligacion.estado === "presentada"
-              ? `Presentada`
+              ? "Presentada"
               : `Vence el ${fechaStr} · ${obligacion.diasRestantes} días`}
           </p>
-          {obligacion.estado === "vencida" && obligacion.multaEstimada > 0 && (
-            <p style={{ color: C.red, fontSize: 11, fontWeight: 600, marginTop: 4 }}>
-              Multa estimada: ${obligacion.multaEstimada.toFixed(2)}
-            </p>
+
+          {/* Mora breakdown — only for vencidas with mora data */}
+          {showMora && (
+            <div
+              style={{
+                marginTop: 10,
+                background: C.red + "08",
+                border: `1px solid ${C.red}25`,
+                borderRadius: 8,
+                padding: "10px 12px",
+                display: "flex",
+                flexDirection: "column",
+                gap: 4,
+              }}
+              onClick={e => e.stopPropagation()}
+            >
+              {mora.desconocido ? (
+                <p style={{ color: C.red, fontSize: 11, fontWeight: 600 }}>
+                  Multa estimada pendiente — completa tu declaración para calcularla
+                </p>
+              ) : (
+                <>
+                  {mora.multa > 0 && (
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                      <span style={{ color: C.textMid, fontSize: 11 }}>Multa · {mora.detalleMulta}</span>
+                      <span style={{ color: C.red, fontSize: 12, fontWeight: 700 }}>{fmt(mora.multa)}</span>
+                    </div>
+                  )}
+                  {mora.intereses > 0 && (
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                      <span style={{ color: C.textMid, fontSize: 11 }}>Intereses · {mora.detalleInteres}</span>
+                      <span style={{ color: C.red, fontSize: 12, fontWeight: 700 }}>{fmt(mora.intereses)}</span>
+                    </div>
+                  )}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", borderTop: `1px solid ${C.red}20`, paddingTop: 4, marginTop: 2 }}>
+                    <span style={{ color: C.red, fontSize: 11, fontWeight: 700 }}>Total mora estimada</span>
+                    <span style={{ color: C.red, fontSize: 13, fontWeight: 800 }}>{fmt(mora.totalMora)}</span>
+                  </div>
+                  {proxAumento && mora.multa > 0 && (
+                    <p style={{ color: C.red, fontSize: 10, opacity: 0.8, marginTop: 2 }}>
+                      Crece el {proxAumento.toLocaleDateString("es-EC", { day: "numeric", month: "long" })} si no presentas antes
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
           )}
         </div>
+
         {!compact && config.cta && (
           <div style={{ flexShrink: 0, alignSelf: "center", display: "flex", alignItems: "center", gap: 6 }}>
             {obligacion.ctaLabel && (
@@ -117,7 +170,8 @@ export default function ObligacionCard({ obligacion, compact }) {
           </div>
         )}
       </div>
-      {!compact && obligacion.estado === "vencida" && (
+
+      {!compact && obligacion.estado === "vencida" && !mora && (
         <p style={{ color: C.red, fontSize: 11, fontWeight: 600, marginTop: 10, paddingLeft: 52 }}>
           No acumules más mora — presenta ahora
         </p>
