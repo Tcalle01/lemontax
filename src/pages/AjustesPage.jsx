@@ -144,6 +144,24 @@ export default function AjustesPage() {
               <input type="number" value={perfil.salario || ""} onChange={e => updatePerfil("salario", e.target.value)} placeholder="0.00" style={{ ...inputStyle, paddingLeft: 28 }} />
             </div>
           </div>
+          {(perfil.tipoContribuyente === "dependencia_pura" || perfil.tipoContribuyente === "dependencia_con_extras") && (
+            <div style={{ marginBottom: 14 }}>
+              <label style={labelStyle}>Sueldo neto mensual (después de IESS)</label>
+              <div style={{ position: "relative" }}>
+                <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: C.textMid, fontSize: 13 }}>$</span>
+                <input
+                  type="number"
+                  value={perfil.ingresoMensualDependencia || ""}
+                  onChange={e => updatePerfil("ingresoMensualDependencia", e.target.value)}
+                  placeholder="0.00"
+                  style={{ ...inputStyle, paddingLeft: 28 }}
+                />
+              </div>
+              <p style={{ color: C.textDim, fontSize: 11, marginTop: 5 }}>
+                Lo que recibes cada mes después de descuentos del IESS — para proyectar tu IR anual
+              </p>
+            </div>
+          )}
           <div style={{ marginBottom: 14 }}>
             <label style={labelStyle}>Ingresos otros empleadores (mensual)</label>
             <div style={{ position: "relative" }}>

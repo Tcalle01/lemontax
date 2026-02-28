@@ -15,6 +15,7 @@ import GastosPersonalesPage from "./pages/GastosPersonalesPage";
 import FacturasPage from "./pages/FacturasPage";
 import HistorialPage from "./pages/HistorialPage";
 import AjustesPage from "./pages/AjustesPage";
+import ProyeccionIRPage from "./pages/ProyeccionIRPage";
 
 function LoadingScreen() {
   return (
@@ -65,6 +66,7 @@ function AppContent() {
           <Route path="/obligaciones/gastos-personales/:anio" element={<GastosPersonalesPage />} />
           <Route path="/obligaciones/:tipo/:year/:periodo" element={<ObligacionDetallePage />} />
           <Route path="/obligaciones/:tipo/:year" element={<ObligacionDetallePage />} />
+          <Route path="/proyeccion-ir" element={<ProyeccionIRPage />} />
           <Route path="/facturas" element={<FacturasPage />} />
           <Route path="/historial" element={<HistorialPage />} />
           <Route path="/ajustes" element={<AjustesPage />} />

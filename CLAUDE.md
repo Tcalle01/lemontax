@@ -36,6 +36,7 @@ Browser (React 19 + Vite 7)
   │           ├── /obligaciones/iva-semestral/:anio/:semestre → IvaSemestralPage  ← ídem
   │           ├── /obligaciones/gastos-personales/:anio → GastosPersonalesPage   ← ídem
   │           ├── /obligaciones/:tipo/:year/:periodo → ObligacionDetallePage
+  │           ├── /proyeccion-ir → ProyeccionIRPage  ← sin menú, accesible desde widget dashboard
   │           ├── /facturas → FacturasPage
   │           ├── /historial → HistorialPage
   │           └── /ajustes → AjustesPage
@@ -58,10 +59,11 @@ Supabase Edge Function (gmail-sync, Deno/TypeScript)
 - `src/sriExport.js` — Excel generation (Formulario GP + Anexo GSP) using SheetJS
 - `src/supabase.js` — Supabase client init
 - `src/theme.js` — Design tokens (C), catColors, catIcons, CANASTA, TIPOS_CONTRIBUYENTE, OBLIGACIONES_POR_TIPO, DIAS_VENCIMIENTO
+- `src/data/tablaIR.js` — Tablas IR 2025 hardcodeadas (progresiva general, RIMPE Emprendedor, RIMPE Negocio Popular) + `calcularIR(ingresos, deducibles, tipo)` + `tasaMarginalIR(base)`. ⚠️ Verificar valores RIMPE en sri.gob.ec antes de producción.
 - `supabase/functions/gmail-sync/index.ts` — Edge function (Gmail sync + XML parsing + AI categorization)
 
 #### Hooks
-- `src/hooks/usePerfil.js` — Reads/writes `perfil` table. Returns `{ perfil, tipoContribuyente, regimen, novenoDigitoRuc, onboardingCompletado, loading, savePerfil, updatePerfil, refetch }`
+- `src/hooks/usePerfil.js` — Reads/writes `perfil` table. Returns `{ perfil, tipoContribuyente, regimen, novenoDigitoRuc, onboardingCompletado, loading, savePerfil, updatePerfil, refetch }`. `perfil` incluye `ingresoMensualDependencia` (sueldo neto mensual para tipos dependencia).
 - `src/hooks/useObligaciones.js` — Generates obligations list with due dates from 9th RUC digit. Returns `{ obligaciones, loading }`
 - `src/hooks/useIsMobile.js` — Returns boolean, breakpoint at 768px
 
@@ -70,7 +72,7 @@ Supabase Edge Function (gmail-sync, Deno/TypeScript)
 - `src/layouts/MobileLayout.jsx` — Phone frame, status bar, bottom tab bar
 
 #### Pages
-- `src/pages/DashboardPage.jsx` — Stats, upcoming obligations widget, recent invoices, top categories. **TODO 3:** widget amarillo debajo de obligaciones urgentes si hay facturas sin clasificar del año AGP (`sinClasificarAgp`), navega a GastosPersonalesPage. El map de facturas incluye `esVenta: f.es_venta` para filtrar correctamente.
+- `src/pages/DashboardPage.jsx` — Stats, upcoming obligations widget, recent invoices, top categories. **TODO 3:** widget amarillo debajo de obligaciones urgentes si hay facturas sin clasificar del año AGP (`sinClasificarAgp`), navega a GastosPersonalesPage. El map de facturas incluye `esVenta: f.es_venta` para filtrar correctamente. **TODO 4:** incluye `<ProyeccionIRWidget>` en la columna izquierda (debajo del AGP banner, arriba de facturas recientes).
 - `src/pages/ObligacionesPage.jsx` — TarjetaPerfilTributario + obligations grouped by urgency. **TODO 3:** carga recuento de facturas sin clasificar del año AGP y estado de `declaraciones_agp`; enriquece la obligación AGP con `ctaLabel` dinámico ("Clasificar mis facturas (N pendientes)" / "Ver resumen y generar formularios" / "Ver detalle") y sobreescribe `estado` a `"presentada"` si corresponde.
 - `src/pages/ObligacionDetallePage.jsx` — Detail view with route protection (redirects if tipo doesn't match tipoContribuyente)
 - `src/pages/IvaDeclaracionPage.jsx` — **TODO 1** Declaración mensual IVA (Form 104). Aplica a: `dependencia_con_extras`, `freelancer_general`, `arrendador_general`. Carga compras (es_venta=null/false) y ventas (es_venta=true) del período, calcula IVA, modal Form 104 pre-llenado. Guarda en `declaraciones_iva` con `tipo='mensual'`, `periodo='YYYY-MM'`.
@@ -78,10 +80,12 @@ Supabase Edge Function (gmail-sync, Deno/TypeScript)
 - `src/pages/GastosPersonalesPage.jsx` — **TODO 3** ✅ AGP completo en `/obligaciones/gastos-personales/:anio`. 4 secciones: (1) facturas sin clasificar del año — 5 botones de categoría + "No es gasto personal", clasifican en Supabase con animación fade-out; (2) resumen por categoría (Salud/Educación/Alimentación/Vivienda/Vestimenta) con totales y barra de progreso hacia el límite `min(50% ingresos brutos, $15,817)`; (3) ahorro estimado = efectivo × 15% + motivacional si hay pendientes; (4) botones Formulario GP / Anexo GSP / Generar ambos, instrucciones paso a paso, "Marcar como presentada" (modal con fecha) → upsert en `declaraciones_agp`. Ingresos brutos = `salario × 12 + totalVentas` del año.
 - `src/pages/FacturasPage.jsx` — Invoice list with category filter chips, search, inline category edit
 - `src/pages/HistorialPage.jsx` — Placeholder "Próximamente"
-- `src/pages/AjustesPage.jsx` — **TODO 3 ✅** Simplificado: solo tipo contribuyente card + datos personales + cargas + Gmail sync. Eliminada la sección "Declaración anual" (botones GP/GSP) y el resumen estimado.
+- `src/pages/AjustesPage.jsx` — **TODO 3 ✅** Simplificado: solo tipo contribuyente card + datos personales + cargas + Gmail sync. Eliminada la sección "Declaración anual" (botones GP/GSP) y el resumen estimado. **TODO 4:** campo "Sueldo neto mensual (después de IESS)" visible solo para `dependencia_pura` y `dependencia_con_extras`.
+- `src/pages/ProyeccionIRPage.jsx` — **TODO 4 ✅** Página completa en `/proyeccion-ir` (sin menú, accesible desde widget). Secciones: desglose de ingresos (dependencia+ventas+otros), deducciones (AGP+gastos negocio), base imponible + IR estimado (dark card), simulador slider hasta $50k, comparación con/sin deducciones, nota especial para `dependencia_pura`. Usa `calcularIR()` de tablaIR.js. Fetchea facturas del año actual + `declaraciones_agp` del año anterior.
 
 #### Components
-- `src/components/Onboarding.jsx` — 4-step: RUC check → situación → facturación → noveno dígito. Calls `onComplete({ tipoContribuyente, regimen, novenoDigitoRuc, onboardingCompletado: true })`
+- `src/components/Onboarding.jsx` — **TODO 4:** 5-step para dependencia: RUC → situación → **ingreso neto mensual** → noveno dígito. Para freelancer/negocio: RUC → situación → facturación → noveno dígito. Constantes `STEP_RUC=0, STEP_SITUACION=1, STEP_FACTURACION=2, STEP_NOVENO=3, STEP_INGRESO=4`. `progressIndex()` mapea step a progreso visual (0–3). `onComplete` incluye `ingresoMensualDependencia`.
+- `src/components/ProyeccionIRWidget.jsx` — **TODO 4 ✅** Widget compacto para dashboard. Props: `{ facturas, perfil, tipoContribuyente }`. Muestra: barra progreso del año (mes/12), ingresos acumulados, IR estimado anualizado. Link "Ver completo →" navega a `/proyeccion-ir`. Usa `calcularIR()` de tablaIR.js.
 - `src/components/ObligacionCard.jsx` — Card with 5 states (vencida/urgente/pendiente/futura/presentada). **TODO 3:** soporta `obligacion.ctaLabel` opcional: si presente, muestra un badge de texto junto al chevron (útil para el AGP card con mensaje dinámico).
 - `src/components/TarjetaPerfilTributario.jsx` — Dark card showing contributor type, regime, detalle, and IVA obligation chip: "IVA Semestral" para `rimpe_emprendedor`, "IVA Mensual" para los demás con IVA, nada para los que no declaran IVA
 - `src/components/Icon.jsx` — Material Symbols icon wrapper
@@ -95,12 +99,16 @@ Supabase Edge Function (gmail-sync, Deno/TypeScript)
 
 - **facturas** — `user_id, emisor, ruc, fecha, monto, categoria, es_deducible_sri, clave_acceso, fuente(gmail|manual), es_venta(bool default false), tarifa_iva(numeric nullable)`. Upsert conflict key: `user_id,clave_acceso`. `monto` = importeTotal (total con IVA para compras de Gmail; base sin IVA para ventas manuales). `tarifa_iva`: null o >0 = gravada 15%, 0 = tarifa 0%.
 - **gmail_tokens** — `user_id, refresh_token, last_sync`
-- **perfil** — `user_id, cedula, nombre, salario_mensual, otros_ingresos, cargas_familiares, enfermedad_catastrofica, tipo_contribuyente, regimen, noveno_digito_ruc, onboarding_completado`
+- **perfil** — `user_id, cedula, nombre, salario_mensual, otros_ingresos, cargas_familiares, enfermedad_catastrofica, tipo_contribuyente, regimen, noveno_digito_ruc, onboarding_completado, ingreso_mensual_dependencia numeric(12,2)` *(campo TODO 4: sueldo neto mensual después de IESS, solo para dependencia_pura/dependencia_con_extras)*
 - **declaraciones_iva** *(TODO 1 + 2)* — `id uuid pk, user_id, periodo, tipo(mensual|semestral), total_ventas, iva_ventas, total_compras, credito_tributario, valor_pagar(negativo=crédito a favor), fecha_vencimiento date, fecha_presentacion date, estado(pendiente|presentada|vencida), created_at`. UNIQUE(user_id, periodo). `periodo` = `'YYYY-MM'` para mensual, `'YYYY-S1'` / `'YYYY-S2'` para semestral. RLS: usuarios solo ven sus propias declaraciones.
 - **declaraciones_agp** *(TODO 3)* — `id uuid pk, user_id, anio_fiscal integer, total_salud, total_educacion, total_alimentacion, total_vivienda, total_vestimenta, total_deducible, ahorro_estimado, estado('borrador'|'presentada'), fecha_presentacion date, created_at`. UNIQUE(user_id, anio_fiscal). RLS.
 
 > **Required SQL migrations** (run in Supabase Dashboard → SQL Editor):
 > ```sql
+> -- Perfil: campo ingreso dependencia (TODO 4)
+> ALTER TABLE perfil
+>   ADD COLUMN IF NOT EXISTS ingreso_mensual_dependencia numeric(12,2);
+>
 > -- Perfil: campos de onboarding (ya aplicado si el onboarding funciona)
 > ALTER TABLE perfil
 >   ADD COLUMN IF NOT EXISTS tipo_contribuyente text,
@@ -185,6 +193,8 @@ SRI JSON upload format: `{ "detallesDeclaracion": { "3310": "5760", ... } }` —
 - **AGP clasificación con animación** — al clasificar, `clasificandoId` activa opacity 0 en la factura (CSS transition 320ms), luego `setFacturas` actualiza la categoría y la factura sale de `sinClasificar`. No usar `removiendoIds` separado.
 - **AGP presentada en ObligacionesPage** — carga `declaraciones_agp` en paralelo con `Promise.allSettled` para no romper si la tabla no existe. Sobreescribe `obligacion.estado` a `"presentada"` y añade `ctaLabel` antes de pasarlo a ObligacionCard.
 - **recharts** — instalado (v3) para gráficos de barras en IvaSemestralPage. Usar `ResponsiveContainer + BarChart + Bar` con `radius={[4,4,0,0]}` para estilo consistente. Tooltip y Legend con `fontFamily: "DM Sans, sans-serif"`
+- **IR calculation (TODO 4)** — `calcularIR(ingresos, gastosDeducibles, tipoContribuyente)` en `src/data/tablaIR.js`. Para dependencia: `ingresos = ingresoNetoMensual * 12` (neto ya sin IESS → base = ingresos - GP). Para freelancer/arriendo: `ingresos = ventas + otros`. Para RIMPE: tabla simplificada (emprendedor) o cuota fija (negocio popular). IR anualizado en widget = `(ingresosAcumulados / mesesTranscurridos) * 12`. Simulador: slider 0–$50k de ingresos extra, recalcula en tiempo real con derived state.
+- **ProyeccionIR income convention** — `dependencia_pura`: sin deducción IESS separada (ya incluida en neto). `dependencia_con_extras`: suma neto + ventas_año. RIMPE: no deduce GP del income, aplica tabla RIMPE directamente sobre ingresos brutos.
 - **Edge function categorization** — regex rules first, Claude Haiku API fallback for unmatched items
 - **SRI XML parsing** — handles CDATA, HTML-encoded (`&lt;`), and direct XML formats
 

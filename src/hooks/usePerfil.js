@@ -9,6 +9,7 @@ export function usePerfil() {
     cedula: "", nombre: "", salario: "", otrosIngresos: "", cargas: "0",
     enfermedadCatastrofica: false, tipoContribuyente: null, regimen: null,
     novenoDigitoRuc: null, onboardingCompletado: false,
+    ingresoMensualDependencia: "",
   });
   const [loading, setLoading] = useState(true);
 
@@ -34,6 +35,7 @@ export function usePerfil() {
           regimen: data.regimen || null,
           novenoDigitoRuc: data.noveno_digito_ruc || null,
           onboardingCompletado: data.onboarding_completado || false,
+          ingresoMensualDependencia: data.ingreso_mensual_dependencia?.toString() || "",
           _id: data.id,
         });
       }
@@ -62,6 +64,7 @@ export function usePerfil() {
       regimen: p.regimen,
       noveno_digito_ruc: p.novenoDigitoRuc,
       onboarding_completado: p.onboardingCompletado,
+      ingreso_mensual_dependencia: parseFloat(p.ingresoMensualDependencia) || null,
     };
     try {
       if (p._id) {

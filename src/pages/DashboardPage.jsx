@@ -7,6 +7,7 @@ import { useAuth } from "../auth";
 import { useObligaciones } from "../hooks/useObligaciones";
 import { usePerfil } from "../hooks/usePerfil";
 import { supabase } from "../supabase";
+import ProyeccionIRWidget from "../components/ProyeccionIRWidget";
 
 function calcLimite(salarioAnual, cargas) {
   const canastas = [7, 9, 11, 14, 17, 20][Math.min(cargas, 5)];
@@ -179,6 +180,15 @@ export default function DashboardPage() {
                 Clasificar ahora →
               </span>
             </div>
+          )}
+
+          {/* IR Projection widget */}
+          {onboardingCompletado && (
+            <ProyeccionIRWidget
+              facturas={facturas}
+              perfil={perfil}
+              tipoContribuyente={perfil.tipoContribuyente}
+            />
           )}
 
           {/* Recent invoices */}

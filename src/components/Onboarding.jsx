@@ -3,20 +3,35 @@ import { C, TIPOS_CONTRIBUYENTE } from "../theme";
 import Icon from "./Icon";
 import { useAuth } from "../auth";
 
+// Step constants
+const STEP_RUC = 0;
+const STEP_SITUACION = 1;
+const STEP_FACTURACION = 2;
+const STEP_NOVENO = 3;
+const STEP_INGRESO = 4; // solo para dependencia_pura / dependencia_con_extras
+
+// Maps the current step to a visual progress index (0–3)
+function progressIndex(step) {
+  if (step === STEP_RUC) return 0;
+  if (step === STEP_SITUACION) return 1;
+  if (step === STEP_FACTURACION || step === STEP_INGRESO) return 2;
+  return 3; // STEP_NOVENO
+}
+
 export default function Onboarding({ onComplete }) {
   const { logout } = useAuth();
-  const [step, setStep] = useState(0);
-  const [tieneRuc, setTieneRuc] = useState(null); // null | true | false
+  const [step, setStep] = useState(STEP_RUC);
+  const [tieneRuc, setTieneRuc] = useState(null);
   const [situacion, setSituacion] = useState(null);
-  const [facturacion, setFacturacion] = useState(null); // null | "bajo" | "medio" | "alto"
+  const [facturacion, setFacturacion] = useState(null);
   const [novenoDigito, setNovenoDigito] = useState("");
+  const [ingresoMensual, setIngresoMensual] = useState("");
   const [saving, setSaving] = useState(false);
 
-  // Determine if step 2 (revenue) is needed
   const necesitaPasoFacturacion = situacion === "freelancer" || situacion === "negocio";
+  const esDependencia = situacion === "dependencia" || situacion === "dependencia_extras";
 
   const handleFinish = async () => {
-    // Calculate tipo_contribuyente
     let tipo;
     if (situacion === "dependencia") tipo = "dependencia_pura";
     else if (situacion === "dependencia_extras") tipo = "dependencia_con_extras";
@@ -33,11 +48,12 @@ export default function Onboarding({ onComplete }) {
       regimen,
       novenoDigitoRuc: novenoDigito || null,
       onboardingCompletado: true,
+      ingresoMensualDependencia: esDependencia && ingresoMensual ? ingresoMensual : "",
     });
     setSaving(false);
   };
 
-  const nextStep = () => setStep(s => s + 1);
+  const pIdx = progressIndex(step);
 
   return (
     <div style={{
@@ -48,6 +64,9 @@ export default function Onboarding({ onComplete }) {
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Syne:wght@700;800&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
         button:hover { opacity: 0.88; }
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type="number"] { -moz-appearance: textfield; }
       `}</style>
 
       <div style={{ width: "100%", maxWidth: 520 }}>
@@ -65,14 +84,14 @@ export default function Onboarding({ onComplete }) {
           {[0, 1, 2, 3].map(i => (
             <div key={i} style={{
               flex: 1, height: 4, borderRadius: 2,
-              background: i <= step ? C.green : C.border,
+              background: i <= pIdx ? C.green : C.border,
               transition: "all 0.3s",
             }} />
           ))}
         </div>
 
         {/* Step 0: ¿Tienes RUC? */}
-        {step === 0 && (
+        {step === STEP_RUC && (
           <div>
             <h2 style={{ color: C.text, fontSize: 24, fontWeight: 800, fontFamily: "Syne, sans-serif", marginBottom: 8 }}>
               ¿Tienes RUC activo?
@@ -112,7 +131,7 @@ export default function Onboarding({ onComplete }) {
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                <button onClick={() => { setTieneRuc(true); nextStep(); }} style={{
+                <button onClick={() => { setTieneRuc(true); setStep(STEP_SITUACION); }} style={{
                   width: "100%", padding: 18, background: C.white, color: C.green,
                   border: `2px solid ${C.border}`, borderRadius: 16, fontSize: 16, fontWeight: 700,
                   cursor: "pointer", fontFamily: "DM Sans, sans-serif", display: "flex", alignItems: "center", gap: 12,
@@ -132,7 +151,7 @@ export default function Onboarding({ onComplete }) {
         )}
 
         {/* Step 1: Situación */}
-        {step === 1 && (
+        {step === STEP_SITUACION && (
           <div>
             <h2 style={{ color: C.text, fontSize: 24, fontWeight: 800, fontFamily: "Syne, sans-serif", marginBottom: 8 }}>
               ¿Cómo describes tu situación?
@@ -151,9 +170,11 @@ export default function Onboarding({ onComplete }) {
                 <button key={opt.id} onClick={() => {
                   setSituacion(opt.id);
                   if (opt.id === "freelancer" || opt.id === "negocio") {
-                    setStep(2);
+                    setStep(STEP_FACTURACION);
+                  } else if (opt.id === "dependencia" || opt.id === "dependencia_extras") {
+                    setStep(STEP_INGRESO);
                   } else {
-                    setStep(3); // Skip facturacion step
+                    setStep(STEP_NOVENO);
                   }
                 }} style={{
                   width: "100%", padding: "16px 18px", background: C.white,
@@ -176,7 +197,7 @@ export default function Onboarding({ onComplete }) {
         )}
 
         {/* Step 2: Facturación (solo para freelancer/negocio) */}
-        {step === 2 && necesitaPasoFacturacion && (
+        {step === STEP_FACTURACION && necesitaPasoFacturacion && (
           <div>
             <h2 style={{ color: C.text, fontSize: 24, fontWeight: 800, fontFamily: "Syne, sans-serif", marginBottom: 8 }}>
               ¿Cuánto facturas al año aproximadamente?
@@ -218,7 +239,7 @@ export default function Onboarding({ onComplete }) {
                 ].map(opt => (
                   <button key={opt.id} onClick={() => {
                     setFacturacion(opt.id);
-                    if (opt.id !== "alto") setStep(3);
+                    if (opt.id !== "alto") setStep(STEP_NOVENO);
                   }} style={{
                     width: "100%", padding: "16px 18px", background: C.white,
                     border: `2px solid ${C.border}`, borderRadius: 14,
@@ -228,7 +249,7 @@ export default function Onboarding({ onComplete }) {
                     <p style={{ color: C.textMid, fontSize: 12 }}>{opt.desc}</p>
                   </button>
                 ))}
-                <button onClick={() => setStep(1)} style={{
+                <button onClick={() => setStep(STEP_SITUACION)} style={{
                   padding: "10px", background: "transparent", border: "none", color: C.textMid,
                   fontSize: 13, cursor: "pointer", fontFamily: "DM Sans, sans-serif",
                 }}>
@@ -239,8 +260,90 @@ export default function Onboarding({ onComplete }) {
           </div>
         )}
 
+        {/* Step 4: Ingreso mensual (solo para dependencia) */}
+        {step === STEP_INGRESO && esDependencia && (
+          <div>
+            <h2 style={{ color: C.text, fontSize: 24, fontWeight: 800, fontFamily: "Syne, sans-serif", marginBottom: 8 }}>
+              ¿Cuánto recibes de sueldo mensualmente?
+            </h2>
+            <p style={{ color: C.textMid, fontSize: 14, lineHeight: 1.7, marginBottom: 24 }}>
+              Ingresa el valor neto que recibes después de los descuentos del IESS. Lo usamos para estimar tu IR anual.
+            </p>
+
+            <div style={{ background: C.surface, borderRadius: 14, padding: 20, border: `1px solid ${C.border}`, marginBottom: 24 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+                <Icon name="info" color={C.blue} size={18} />
+                <span style={{ color: C.textMid, fontSize: 12, fontWeight: 600 }}>¿Por qué te preguntamos esto?</span>
+              </div>
+              <p style={{ color: C.textMid, fontSize: 12, lineHeight: 1.6 }}>
+                Tus ingresos de dependencia no aparecen en tus facturas. Con este dato calculamos si habrá un pago adicional de IR al declarar.
+              </p>
+            </div>
+
+            <div style={{ position: "relative", marginBottom: 20 }}>
+              <span style={{
+                position: "absolute", left: 16, top: "50%", transform: "translateY(-50%)",
+                color: C.textMid, fontSize: 16, fontWeight: 700, pointerEvents: "none",
+              }}>$</span>
+              <input
+                type="number"
+                value={ingresoMensual}
+                onChange={e => setIngresoMensual(e.target.value)}
+                placeholder="0.00"
+                min="0"
+                step="0.01"
+                style={{
+                  width: "100%", padding: "16px 16px 16px 32px",
+                  background: C.white, border: `2px solid ${ingresoMensual ? C.green : C.border}`,
+                  borderRadius: 14, fontSize: 20, fontWeight: 700, color: C.text,
+                  fontFamily: "DM Sans, sans-serif", outline: "none",
+                  transition: "border-color 0.2s",
+                }}
+              />
+            </div>
+
+            {ingresoMensual && parseFloat(ingresoMensual) > 0 && (
+              <div style={{
+                background: C.green + "10", borderRadius: 10, padding: "10px 14px",
+                marginBottom: 20, display: "flex", alignItems: "center", gap: 8,
+              }}>
+                <Icon name="calendar_month" color={C.green} size={16} />
+                <span style={{ color: C.green, fontSize: 13, fontWeight: 600 }}>
+                  Anual estimado: ${(parseFloat(ingresoMensual) * 12).toLocaleString("es-EC", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+              </div>
+            )}
+
+            <button
+              onClick={() => setStep(STEP_NOVENO)}
+              style={{
+                width: "100%", padding: 16, background: C.green, color: C.white,
+                border: "none", borderRadius: 14, fontSize: 16, fontWeight: 700,
+                cursor: "pointer", fontFamily: "DM Sans, sans-serif",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+              }}
+            >
+              Continuar
+            </button>
+
+            <button onClick={() => setStep(STEP_SITUACION)} style={{
+              width: "100%", padding: "10px", background: "transparent", border: "none", color: C.textMid,
+              fontSize: 13, cursor: "pointer", fontFamily: "DM Sans, sans-serif", marginTop: 10,
+            }}>
+              ← Volver
+            </button>
+
+            <button onClick={() => { setIngresoMensual(""); setStep(STEP_NOVENO); }} style={{
+              width: "100%", padding: "8px", background: "transparent", border: "none", color: C.textDim,
+              fontSize: 12, cursor: "pointer", fontFamily: "DM Sans, sans-serif",
+            }}>
+              Prefiero no decirlo por ahora
+            </button>
+          </div>
+        )}
+
         {/* Step 3: Noveno dígito RUC */}
-        {step === 3 && (
+        {step === STEP_NOVENO && (
           <div>
             <h2 style={{ color: C.text, fontSize: 24, fontWeight: 800, fontFamily: "Syne, sans-serif", marginBottom: 8 }}>
               ¿Cuál es el noveno dígito de tu RUC?
@@ -303,7 +406,7 @@ export default function Onboarding({ onComplete }) {
               {saving ? "Guardando..." : "Completar configuración"}
             </button>
 
-            <button onClick={() => setStep(necesitaPasoFacturacion ? 2 : 1)} style={{
+            <button onClick={() => setStep(esDependencia ? STEP_INGRESO : necesitaPasoFacturacion ? STEP_FACTURACION : STEP_SITUACION)} style={{
               width: "100%", padding: "10px", background: "transparent", border: "none", color: C.textMid,
               fontSize: 13, cursor: "pointer", fontFamily: "DM Sans, sans-serif", marginTop: 10,
             }}>
