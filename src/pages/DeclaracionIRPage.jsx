@@ -16,7 +16,7 @@ const TIPOS_CON_FACTURACION = [
   "freelancer_general", "rimpe_emprendedor", "rimpe_negocio_popular",
   "arrendador_general", "dependencia_con_extras",
 ];
-const CATS_AGP = ["Salud", "Educación", "Alimentación", "Vivienda", "Vestimenta"];
+const CATS_AGP = ["Salud", "Educación", "Alimentación", "Vivienda", "Vestimenta", "Turismo"];
 
 function getPasos(tipo) {
   const esRimpe = TIPOS_RIMPE.includes(tipo);
@@ -262,6 +262,7 @@ export default function DeclaracionIRPage() {
   const [gpAlimentacion, setGpAlimentacion] = useState(0);
   const [gpVivienda, setGpVivienda] = useState(0);
   const [gpVestimenta, setGpVestimenta] = useState(0);
+  const [gpTurismo, setGpTurismo] = useState(0);
   const [retenciones, setRetenciones] = useState(0);
   const [anticipos, setAnticipos] = useState(0);
 
@@ -307,16 +308,19 @@ export default function DeclaracionIRPage() {
         setGpAlimentacion(dec.gastos_personales_alimentacion || 0);
         setGpVivienda(dec.gastos_personales_vivienda || 0);
         setGpVestimenta(dec.gastos_personales_vestimenta || 0);
+        setGpTurismo(dec.gastos_personales_turismo || 0);
         setRetenciones(dec.retenciones_recibidas || 0);
         setAnticipos(dec.anticipos_pagados || 0);
       } else {
-        // Pre-llenar desde perfil y AGP
+        // Pre-llenar desde perfil, AGP y facturas (AGP tiene prioridad sobre facturas)
+        const catSum = (cat) => fs.filter(f => !f.es_venta && f.categoria === cat).reduce((a, f) => a + (f.monto || 0), 0);
         setSueldoAnual(esDependencia ? ingresoMensual * 12 : 0);
-        setGpSalud(agp?.total_salud || 0);
-        setGpEducacion(agp?.total_educacion || 0);
-        setGpAlimentacion(agp?.total_alimentacion || 0);
-        setGpVivienda(agp?.total_vivienda || 0);
-        setGpVestimenta(agp?.total_vestimenta || 0);
+        setGpSalud(agp?.total_salud || catSum("Salud"));
+        setGpEducacion(agp?.total_educacion || catSum("Educación"));
+        setGpAlimentacion(agp?.total_alimentacion || catSum("Alimentación"));
+        setGpVivienda(agp?.total_vivienda || catSum("Vivienda"));
+        setGpVestimenta(agp?.total_vestimenta || catSum("Vestimenta"));
+        setGpTurismo(agp?.total_turismo || catSum("Turismo"));
       }
 
       setLoading(false);
@@ -333,7 +337,7 @@ export default function DeclaracionIRPage() {
   const totalComprasNegocioAuto = comprasNegocio.reduce((a, f) => a + (f.monto || 0), 0);
   const totalGastosNegocio = totalComprasNegocioAuto + otrosGastosNegocio;
 
-  const totalGP = gpSalud + gpEducacion + gpAlimentacion + gpVivienda + gpVestimenta;
+  const totalGP = gpSalud + gpEducacion + gpAlimentacion + gpVivienda + gpVestimenta + gpTurismo;
   const totalDeducciones = esRimpe ? 0 : (totalGastosNegocio + totalGP);
 
   const ingDepTotal = sueldoAnual + bonosExtras;
@@ -361,6 +365,7 @@ export default function DeclaracionIRPage() {
         gastos_personales_alimentacion: gpAlimentacion,
         gastos_personales_vivienda: gpVivienda,
         gastos_personales_vestimenta: gpVestimenta,
+        gastos_personales_turismo: gpTurismo,
         base_imponible: baseImponible,
         ir_causado: irCausado,
         retenciones_recibidas: retenciones,
@@ -400,6 +405,7 @@ export default function DeclaracionIRPage() {
       gastos_personales_alimentacion: gpAlimentacion,
       gastos_personales_vivienda: gpVivienda,
       gastos_personales_vestimenta: gpVestimenta,
+      gastos_personales_turismo: gpTurismo,
       base_imponible: baseImponible,
       ir_causado: irCausado,
       retenciones_recibidas: retenciones,
@@ -422,6 +428,7 @@ export default function DeclaracionIRPage() {
       gastos_personales_alimentacion: gpAlimentacion,
       gastos_personales_vivienda: gpVivienda,
       gastos_personales_vestimenta: gpVestimenta,
+      gastos_personales_turismo: gpTurismo,
       base_imponible: baseImponible,
       ir_causado: irCausado,
       retenciones_recibidas: retenciones,
@@ -739,6 +746,7 @@ export default function DeclaracionIRPage() {
               { label: "Alimentación", value: gpAlimentacion, set: setGpAlimentacion, icon: "shopping_cart" },
               { label: "Vivienda", value: gpVivienda, set: setGpVivienda, icon: "home" },
               { label: "Vestimenta", value: gpVestimenta, set: setGpVestimenta, icon: "checkroom" },
+              { label: "Turismo", value: gpTurismo, set: setGpTurismo, icon: "flight" },
             ].map(({ label, value, set }) => (
               <CampoNumerico
                 key={label}
@@ -1041,6 +1049,7 @@ export default function DeclaracionIRPage() {
           { cas: "453", label: "Gastos personales — Alimentación", value: gpAlimentacion },
           { cas: "454", label: "Gastos personales — Vivienda", value: gpVivienda },
           { cas: "455", label: "Gastos personales — Vestimenta", value: gpVestimenta },
+          { cas: "456", label: "Gastos personales — Turismo", value: gpTurismo },
           { cas: "499", label: "Total deducciones", value: totalGastosNegocio + totalGP, bold: true },
           null,
           { cas: "839", label: "Base imponible", value: baseImponible, bold: true },

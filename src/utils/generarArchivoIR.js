@@ -32,6 +32,7 @@ function fmt2(n) {
  *   GP alimentación         → 3300 (C775 / C453)
  *   GP vivienda             → 3310 (C776 / C454)
  *   GP vestimenta           → 3320 (C777 / C455)
+ *   GP turismo              → 3325 (C796 / C456)
  *   Total GP                → 3330 (C797 / C499)
  *   Base imponible          → 3480 (C832 / C839)
  *   IR causado régimen gral → 3490 (C849)
@@ -57,6 +58,7 @@ export function buildConceptosIR({
   gastos_personales_alimentacion = 0,
   gastos_personales_vivienda = 0,
   gastos_personales_vestimenta = 0,
+  gastos_personales_turismo = 0,
   base_imponible = 0,
   ir_causado = 0,
   retenciones_recibidas = 0,
@@ -78,7 +80,8 @@ export function buildConceptosIR({
   const gpAlim = parseFloat(gastos_personales_alimentacion);
   const gpViv = parseFloat(gastos_personales_vivienda);
   const gpVest = parseFloat(gastos_personales_vestimenta);
-  const totalGP = gpSalud + gpEdu + gpAlim + gpViv + gpVest;
+  const gpTur = parseFloat(gastos_personales_turismo);
+  const totalGP = gpSalud + gpEdu + gpAlim + gpViv + gpVest + gpTur;
   const base = parseFloat(base_imponible);
   const irCaus = parseFloat(ir_causado);
   const ret = parseFloat(retenciones_recibidas);
@@ -139,7 +142,8 @@ export function buildConceptosIR({
     if (gpEdu > 0)   conceptos["5040"] = fmt2(gpEdu);       // C773: educación
     if (gpAlim > 0)  conceptos["3300"] = fmt2(gpAlim);      // C775: alimentación
     if (gpViv > 0)   conceptos["3310"] = fmt2(gpViv);       // C776: vivienda
-    if (gpVest > 0)  conceptos["3320"] = fmt2(gpVest);      // C777: vestimenta
+    if (gpVest > 0)  conceptos["3320"] = fmt2(gpVest);       // C777: vestimenta
+    if (gpTur > 0)   conceptos["3325"] = fmt2(gpTur);        // C796: turismo
     if (totalGP > 0) conceptos["3330"] = fmt2(totalGP);     // C797: total gastos personales
 
     // BASE E IMPUESTO
@@ -253,6 +257,7 @@ export function generarArchivoIR(declaracion, perfil, tipoContribuyente = "depen
     gastos_personales_alimentacion = 0,
     gastos_personales_vivienda = 0,
     gastos_personales_vestimenta = 0,
+    gastos_personales_turismo = 0,
     base_imponible = 0,
     ir_causado = 0,
     retenciones_recibidas = 0,
@@ -267,7 +272,8 @@ export function generarArchivoIR(declaracion, perfil, tipoContribuyente = "depen
     parseFloat(gastos_personales_educacion) +
     parseFloat(gastos_personales_alimentacion) +
     parseFloat(gastos_personales_vivienda) +
-    parseFloat(gastos_personales_vestimenta);
+    parseFloat(gastos_personales_vestimenta) +
+    parseFloat(gastos_personales_turismo);
 
   const esRimpe = ["rimpe_emprendedor", "rimpe_negocio_popular"].includes(tipoContribuyente);
   const regimen = esRimpe ? `RIMPE_${tipoContribuyente === "rimpe_emprendedor" ? "EMPRENDEDOR" : "NEGOCIO_POPULAR"}` : "GENERAL";
@@ -296,6 +302,7 @@ export function generarArchivoIR(declaracion, perfil, tipoContribuyente = "depen
     <casilla453>${fmt2(gastos_personales_alimentacion)}</casilla453>
     <casilla454>${fmt2(gastos_personales_vivienda)}</casilla454>
     <casilla455>${fmt2(gastos_personales_vestimenta)}</casilla455>
+    <casilla456>${fmt2(gastos_personales_turismo)}</casilla456>
     <casilla499>${fmt2(totalDeducciones)}</casilla499>
   </deducciones>
   <liquidacion>

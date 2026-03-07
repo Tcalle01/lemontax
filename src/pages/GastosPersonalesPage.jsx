@@ -7,7 +7,7 @@ import { usePerfil } from "../hooks/usePerfil";
 import { supabase } from "../supabase";
 import { generarFormularioGP, generarAnexoGSP } from "../sriExport";
 
-const CATS_DEDUCIBLES = ["Salud", "Educación", "Alimentación", "Vivienda", "Vestimenta"];
+const CATS_DEDUCIBLES = ["Salud", "Educación", "Alimentación", "Vivienda", "Vestimenta", "Turismo"];
 const LIMITE_MAX = 15817;
 
 const OPCIONES_CLASIFICACION = [
@@ -16,6 +16,7 @@ const OPCIONES_CLASIFICACION = [
   { cat: "Alimentación", icon: "shopping_cart" },
   { cat: "Vivienda", icon: "home" },
   { cat: "Vestimenta", icon: "checkroom" },
+  { cat: "Turismo", icon: "flight" },
 ];
 
 function fmt(n) {
@@ -198,6 +199,7 @@ export default function GastosPersonalesPage() {
       total_alimentacion: totalesCat["Alimentación"] || 0,
       total_vivienda: totalesCat["Vivienda"] || 0,
       total_vestimenta: totalesCat["Vestimenta"] || 0,
+      total_turismo: totalesCat["Turismo"] || 0,
       total_deducible: totalDeducible,
       ahorro_estimado: ahorroEstimado,
       estado: "presentada",
