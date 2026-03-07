@@ -5,6 +5,7 @@ import Icon from "../components/Icon";
 import { supabase } from "../supabase";
 import { useAuth } from "../auth";
 import { usePerfil } from "../hooks/usePerfil";
+import { descargarXMLIVA, descargarJSONIVA } from "../utils/generarArchivoIVA";
 
 const IVA_RATE = 0.15;
 
@@ -113,15 +114,16 @@ function ModalForm104({
   onClose, mesLabel, year,
   totalVentasGravadas, totalVentasCero, ivaVentas,
   totalCompras, ivaCompras, saldo,
+  onDescargarXML, onDescargarJSON,
 }) {
   const baseCompras = totalCompras > 0 ? totalCompras / (1 + IVA_RATE) : 0;
 
   const campos = [
     { num: "401", desc: "Ventas gravadas — base sin IVA (15%)",     val: totalVentasGravadas },
     { num: "421", desc: "IVA que cobraste a tus clientes",           val: ivaVentas },
-    { num: "451", desc: "Ventas sin IVA (tarifa 0%)",                val: totalVentasCero },
+    { num: "403", desc: "Ventas sin IVA (tarifa 0%)",                val: totalVentasCero },
     { num: "500", desc: "Compras — base estimada sin IVA",           val: baseCompras },
-    { num: "507", desc: "IVA que pagaste en tus compras",            val: ivaCompras },
+    { num: "520", desc: "IVA que pagaste en tus compras",            val: ivaCompras },
     saldo >= 0
       ? { num: "601", desc: "Total a pagar al SRI",         val: saldo,          destaca: true, esPago: true }
       : { num: "602", desc: "Tu saldo a favor del SRI",     val: Math.abs(saldo), destaca: true, esPago: false },
@@ -129,10 +131,10 @@ function ModalForm104({
 
   const pasos = [
     `Ingresa al portal SRI en línea (srienlinea.sri.gob.ec) con tu RUC y clave de acceso.`,
-    `Ve a "Mis declaraciones" → "Formulario 104 – IVA" y selecciona el período ${mesLabel} ${year}.`,
-    `En el módulo Ventas, ingresa el campo 401 (ventas gravadas base) y el campo 451 (ventas tarifa 0%).`,
-    `En el módulo Compras, ingresa el campo 507 (IVA que pagaste en tus compras).`,
-    `El portal calculará automáticamente si debes pagar (campo 601) o tienes saldo a favor (campo 602).`,
+    `Ve a "Declaraciones" → "Elaboración y envío de declaraciones" → "Formulario 104 – IVA" y selecciona el período ${mesLabel} ${year}.`,
+    `Opción rápida: en el paso 2 haz clic en "Cargar archivo declaración" y sube el archivo XML o JSON que descargaste — el portal llenará los campos automáticamente.`,
+    `Opción manual: copia los valores de la tabla de arriba en los casilleros correspondientes del formulario.`,
+    `El portal calculará automáticamente multas e intereses si la declaración está atrasada.`,
     `Firma electrónicamente con tu token o clave de firma digital.`,
     `Envía la declaración y descarga el comprobante PDF — guárdalo en tus archivos.`,
   ];
@@ -211,6 +213,45 @@ function ModalForm104({
           ))}
         </div>
 
+        {/* Descarga de archivo */}
+        <div style={{ marginBottom: 22 }}>
+          <p style={{ color: C.text, fontSize: 13, fontWeight: 700, marginBottom: 10, display: "flex", alignItems: "center", gap: 7, fontFamily: "DM Sans, sans-serif" }}>
+            <Icon name="download" color={C.greenAccent} size={17} />
+            Descarga el archivo para subir al SRI
+          </p>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <button
+              onClick={onDescargarXML}
+              style={{
+                display: "flex", alignItems: "center", gap: 7,
+                padding: "10px 18px", background: C.surface,
+                border: `1.5px solid ${C.border}`, borderRadius: 10,
+                fontSize: 13, fontWeight: 700, cursor: "pointer",
+                fontFamily: "DM Sans, sans-serif", color: C.text,
+              }}
+            >
+              <Icon name="code" color={C.greenAccent} size={16} />
+              Descargar XML
+            </button>
+            <button
+              onClick={onDescargarJSON}
+              style={{
+                display: "flex", alignItems: "center", gap: 7,
+                padding: "10px 18px", background: C.surface,
+                border: `1.5px solid ${C.border}`, borderRadius: 10,
+                fontSize: 13, fontWeight: 700, cursor: "pointer",
+                fontFamily: "DM Sans, sans-serif", color: C.text,
+              }}
+            >
+              <Icon name="data_object" color={C.greenAccent} size={16} />
+              Descargar JSON
+            </button>
+          </div>
+          <p style={{ color: C.textDim, fontSize: 11, marginTop: 8, lineHeight: 1.5, fontFamily: "DM Sans, sans-serif" }}>
+            Ambos formatos son compatibles con el portal SRI. Sube el archivo en el paso 2 "Cargar archivo declaración".
+          </p>
+        </div>
+
         <a
           href="https://srienlinea.sri.gob.ec"
           target="_blank"
@@ -283,7 +324,7 @@ export default function IvaDeclaracionPage() {
   const { year, mes } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { tipoContribuyente, novenoDigitoRuc, loading: perfilLoading } = usePerfil();
+  const { perfil, tipoContribuyente, novenoDigitoRuc, loading: perfilLoading } = usePerfil();
 
   const [compras, setCompras] = useState([]);
   const [ventas, setVentas] = useState([]);
@@ -647,6 +688,42 @@ export default function IvaDeclaracionPage() {
           Ver formulario pre-llenado
         </button>
 
+        <button
+          onClick={() => descargarXMLIVA(
+            { totalVentasGravadas, ivaVentas, totalVentasCero, totalCompras, ivaCompras },
+            perfil?.cedula,
+            periodo,
+          )}
+          style={{
+            display: "flex", alignItems: "center", gap: 8,
+            padding: "12px 20px", background: C.surface,
+            border: `1.5px solid ${C.border}`, borderRadius: 11,
+            fontSize: 14, fontWeight: 600, cursor: "pointer",
+            fontFamily: "DM Sans, sans-serif", color: C.text,
+          }}
+        >
+          <Icon name="code" color={C.greenAccent} size={18} />
+          Descargar XML
+        </button>
+
+        <button
+          onClick={() => descargarJSONIVA(
+            { totalVentasGravadas, ivaVentas, totalVentasCero, totalCompras, ivaCompras },
+            perfil?.cedula,
+            periodo,
+          )}
+          style={{
+            display: "flex", alignItems: "center", gap: 8,
+            padding: "12px 20px", background: C.surface,
+            border: `1.5px solid ${C.border}`, borderRadius: 11,
+            fontSize: 14, fontWeight: 600, cursor: "pointer",
+            fontFamily: "DM Sans, sans-serif", color: C.text,
+          }}
+        >
+          <Icon name="data_object" color={C.greenAccent} size={18} />
+          Descargar JSON
+        </button>
+
         {estado !== "presentada" ? (
           <button
             onClick={() => setShowMarcarModal(true)}
@@ -703,6 +780,16 @@ export default function IvaDeclaracionPage() {
           totalCompras={totalCompras}
           ivaCompras={ivaCompras}
           saldo={saldo}
+          onDescargarXML={() => descargarXMLIVA(
+            { totalVentasGravadas, ivaVentas, totalVentasCero, totalCompras, ivaCompras },
+            perfil?.cedula,
+            periodo,
+          )}
+          onDescargarJSON={() => descargarJSONIVA(
+            { totalVentasGravadas, ivaVentas, totalVentasCero, totalCompras, ivaCompras },
+            perfil?.cedula,
+            periodo,
+          )}
         />
       )}
 
