@@ -6,7 +6,7 @@ import { useAuth } from "../auth";
 import { usePerfil } from "../hooks/usePerfil";
 import { supabase } from "../supabase";
 import { calcularIR } from "../data/tablaIR";
-import { descargarArchivoIR } from "../utils/generarArchivoIR";
+import { descargarXMLIR, descargarJSONIR } from "../utils/generarArchivoIR";
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
@@ -411,28 +411,33 @@ export default function DeclaracionIRPage() {
     setModal(null);
   }
 
+  function buildParamsIR() {
+    return {
+      ingresos_dependencia: ingDepTotal,
+      ingresos_facturacion: totalVentas,
+      ingresos_otros: ingresosOtros,
+      gastos_deducibles_negocio: totalGastosNegocio,
+      gastos_personales_salud: gpSalud,
+      gastos_personales_educacion: gpEducacion,
+      gastos_personales_alimentacion: gpAlimentacion,
+      gastos_personales_vivienda: gpVivienda,
+      gastos_personales_vestimenta: gpVestimenta,
+      base_imponible: baseImponible,
+      ir_causado: irCausado,
+      retenciones_recibidas: retenciones,
+      anticipos_pagados: anticipos,
+      ir_a_pagar: irAPagar,
+      tipoContribuyente,
+    };
+  }
+
   function handleDescargarXML() {
-    descargarArchivoIR(
-      {
-        anio_fiscal: anio,
-        ingresos_dependencia: ingDepTotal,
-        ingresos_facturacion: totalVentas,
-        ingresos_otros: ingresosOtros,
-        gastos_deducibles_negocio: totalGastosNegocio,
-        gastos_personales_salud: gpSalud,
-        gastos_personales_educacion: gpEducacion,
-        gastos_personales_alimentacion: gpAlimentacion,
-        gastos_personales_vivienda: gpVivienda,
-        gastos_personales_vestimenta: gpVestimenta,
-        base_imponible: baseImponible,
-        ir_causado: irCausado,
-        retenciones_recibidas: retenciones,
-        anticipos_pagados: anticipos,
-        ir_a_pagar: irAPagar,
-      },
-      perfil,
-      tipoContribuyente
-    );
+    descargarXMLIR(buildParamsIR(), perfil?.cedula, anio);
+    setModal("instrucciones");
+  }
+
+  function handleDescargarJSON() {
+    descargarJSONIR(buildParamsIR(), perfil?.cedula, anio);
     setModal("instrucciones");
   }
 
@@ -936,16 +941,28 @@ export default function DeclaracionIRPage() {
               Ver campos del Formulario 102
             </button>
 
-            <button onClick={handleDescargarXML} style={{
-              padding: "14px", borderRadius: 12,
-              background: C.green, border: "none",
-              color: "#fff", fontSize: 14, fontWeight: 700,
-              cursor: "pointer", fontFamily: "DM Sans, sans-serif",
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-            }}>
-              <Icon name="download" color="#fff" size={18} />
-              Descargar para importar al SRI
-            </button>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={handleDescargarXML} style={{
+                flex: 1, padding: "14px", borderRadius: 12,
+                background: C.green, border: "none",
+                color: "#fff", fontSize: 14, fontWeight: 700,
+                cursor: "pointer", fontFamily: "DM Sans, sans-serif",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+              }}>
+                <Icon name="download" color="#fff" size={18} />
+                Descargar XML
+              </button>
+              <button onClick={handleDescargarJSON} style={{
+                flex: 1, padding: "14px", borderRadius: 12,
+                background: "none", border: `2px solid ${C.green}`,
+                color: C.green, fontSize: 14, fontWeight: 700,
+                cursor: "pointer", fontFamily: "DM Sans, sans-serif",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+              }}>
+                <Icon name="data_object" color={C.green} size={18} />
+                Descargar JSON
+              </button>
+            </div>
 
             {estadoDeclaracion !== "presentada" ? (
               <button onClick={() => setModal("presentada")} style={{
@@ -1058,22 +1075,22 @@ export default function DeclaracionIRPage() {
       </ModalBase>
 
       {/* ── MODAL: Instrucciones descarga ── */}
-      <ModalBase isOpen={modal === "instrucciones"} onClose={() => setModal(null)} title="¿Cómo importar al SRI?">
+      <ModalBase isOpen={modal === "instrucciones"} onClose={() => setModal(null)} title="¿Cómo subir al portal SRI?">
         <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", background: C.greenAccent + "15", borderRadius: 12, marginBottom: 20, border: `1px solid ${C.greenAccent}30` }}>
           <Icon name="download_done" color={C.greenAccent} size={22} />
           <div>
-            <p style={{ color: C.text, fontSize: 14, fontWeight: 700 }}>Archivo descargado</p>
-            <p style={{ color: C.textDim, fontSize: 12 }}>IR_{perfil?.cedula || "SRI"}_{anio}.xml</p>
+            <p style={{ color: C.text, fontSize: 14, fontWeight: 700 }}>Archivo listo para subir</p>
+            <p style={{ color: C.textDim, fontSize: 12 }}>IR_{perfil?.cedula || "SRI"}_{anio}.xml / .json</p>
           </div>
         </div>
 
-        <p style={{ color: C.text, fontSize: 13, fontWeight: 700, marginBottom: 12 }}>Pasos para presentar con el DIMM:</p>
+        <p style={{ color: C.text, fontSize: 13, fontWeight: 700, marginBottom: 12 }}>Pasos para presentar en el portal SRI:</p>
         {[
-          "Descarga e instala el software DIMM Formularios desde sri.gob.ec (Servicios en Línea → DIMM Formularios).",
-          "Abre el programa y selecciona Formulario 102 — Personas Naturales.",
-          'Ve a Archivo → Importar y selecciona el archivo IR_*_' + anio + '.xml que acabas de descargar.',
-          "Revisa que los datos estén correctos. Puedes ajustar manualmente si es necesario.",
-          "Presenta la declaración desde el mismo software DIMM.",
+          "Ingresa a sri.gob.ec → Servicios en Línea → Declaraciones → Impuesto a la Renta.",
+          "Selecciona el año fiscal " + anio + " y el formulario 102 (Personas Naturales).",
+          "Elige la opción \"Importar archivo\" y sube el archivo XML o JSON descargado.",
+          "Revisa que los valores en pantalla coincidan con tu declaración. Ajusta si es necesario.",
+          "Firma con tu clave ciudadana y envía. Guarda el comprobante de presentación.",
         ].map((paso, i) => (
           <div key={i} style={{ display: "flex", gap: 12, marginBottom: 14 }}>
             <div style={{
@@ -1091,9 +1108,9 @@ export default function DeclaracionIRPage() {
           background: C.surface, borderRadius: 10, padding: "12px 14px",
           display: "flex", alignItems: "center", gap: 8, marginTop: 8,
         }}>
-          <Icon name="link" color={C.green} size={16} />
+          <Icon name="info" color={C.green} size={16} />
           <p style={{ color: C.textMid, fontSize: 12 }}>
-            Descarga el DIMM en: <strong style={{ color: C.green }}>sri.gob.ec → Servicios en Línea → DIMM</strong>
+            Acepta también formato JSON. Usa el que el portal SRI en línea te solicite.
           </p>
         </div>
       </ModalBase>
