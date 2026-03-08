@@ -201,11 +201,11 @@ function categorizarArticulos(texto = "") {
 
   // Educación (internet = Educación per SRI 2024)
   if (/COLEGIATURA|PENSION EDUCATIVA|PENSION ESCOLAR|MATRICULA|CURSO|TALLER|SEMINARIO|CAPACITACION|LIBRO|TEXTO|CUADERNO|UTILES|MATERIAL EDUCATIVO|CLASE|LECCION|TUTORIA|CERTIFICACION|INSCRIPCION CURSO/.test(t))
-    return "Educación";
+    return "Educación, arte y cultura";
   if (/INTERNET|FIBRA OPTICA|BANDA ANCHA|SERVICIO INTERNET|PLAN INTERNET/.test(t))
-    return "Educación";
+    return "Educación, arte y cultura";
   if (/ARTE|CULTURA|MUSICA|PINTURA|TEATRO|DANZA|CONCIERTO|ENTRADA MUSEO|ENTRADA CINE/.test(t))
-    return "Educación";
+    return "Educación, arte y cultura";
 
   // Vestimenta
   if (/CAMISA|PANTALON|ZAPATO|ZAPATILLA|VESTIDO|FALDA|CHOMPA|CHAQUETA|ABRIGO|ROPA\b|CALCETIN|INTERIORES|CORBATA|CINTURON|CARTERA|BOLSO|MOCHILA|TELA|UNIFORME|BLUSA|LENCERIA/.test(t))
@@ -248,9 +248,9 @@ function categorizarEmisor(nombre = "") {
 
   // Educación
   if (/LIBRERIA|COLEGIO|ESCUELA|UNIVERSIDAD|ACADEM|INSTITUTO\b|EDUCACION|CAPACIT|IDIOMAS|CULTURA|ARTE\b|CONSERVATORIO|POLITECNICA|USFQ|PUCE\b|UCE\b|UTE\b|UDLA|ESPE\b|ESPOL|FLACSO/.test(n))
-    return "Educación";
+    return "Educación, arte y cultura";
   if (/NETLIFE|PUNTONET|SPEEDNET|MEGADATOS|OPENACCESS|SURNET/.test(n))
-    return "Educación";
+    return "Educación, arte y cultura";
 
   // Vestimenta
   if (/DE PRATI|ETAFASHION|ZARA\b|H&M|ROPA\b|VESTIM|CALZADO|TENNIS\b|MODA\b|FASHION|MARATHON SPORT|ADIDAS|NIKE\b|PUMA\b|REEBOK|CONVERSE|SKECHERS|BOUTIQUE/.test(n))

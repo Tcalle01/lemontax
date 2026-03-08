@@ -49,9 +49,11 @@ export function generarFormularioGP({ perfil, facturas, rebaja, salarioAnual, ca
     catTotals[f.categoria] = (catTotals[f.categoria] || 0) + f.monto;
   });
 
+  // "Educación" is the legacy DB value — sum both for backwards compatibility
+  const eduTotal = (catTotals["Educación, arte y cultura"] || 0) + (catTotals["Educación"] || 0);
   const totalGastos =
     (catTotals["Vivienda"] || 0) +
-    (catTotals["Educación"] || 0) +
+    eduTotal +
     (catTotals["Salud"] || 0) +
     (catTotals["Vestimenta"] || 0) +
     (catTotals["Alimentación"] || 0) +
@@ -117,7 +119,7 @@ export function generarFormularioGP({ perfil, facturas, rebaja, salarioAnual, ca
 
   const gastosRows = [
     ["106", "(+) GASTOS DE VIVIENDA", (catTotals["Vivienda"] || 0) * 12],
-    ["107", "(+) GASTOS DE EDUCACIÓN, ARTE Y CULTURA", (catTotals["Educación"] || 0) * 12],
+    ["107", "(+) GASTOS DE EDUCACIÓN, ARTE Y CULTURA", eduTotal * 12],
     ["108", "(+) GASTOS DE SALUD", (catTotals["Salud"] || 0) * 12],
     ["109", "(+) GASTOS DE VESTIMENTA", (catTotals["Vestimenta"] || 0) * 12],
     ["110", "(+) GASTOS DE ALIMENTACIÓN", (catTotals["Alimentación"] || 0) * 12],
@@ -206,7 +208,8 @@ export function generarAnexoGSP({ perfil, facturas }) {
   const sriMap = {
     "Alimentación": "ALIMENTACION",
     "Salud": "SALUD",
-    "Educación": "EDUCACION ARTE Y CULTURA",
+    "Educación, arte y cultura": "EDUCACION ARTE Y CULTURA",
+    "Educación": "EDUCACION ARTE Y CULTURA", // legacy DB value
     "Vivienda": "VIVIENDA",
     "Vestimenta": "VESTIMENTA",
     "Turismo": "TURISMO",

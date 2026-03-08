@@ -16,7 +16,8 @@ const TIPOS_CON_FACTURACION = [
   "freelancer_general", "rimpe_emprendedor", "rimpe_negocio_popular",
   "arrendador_general", "dependencia_con_extras",
 ];
-const CATS_AGP = ["Salud", "Educación", "Alimentación", "Vivienda", "Vestimenta", "Turismo"];
+// "Educación" is the legacy DB value kept for backwards compatibility
+const CATS_AGP = ["Salud", "Educación, arte y cultura", "Educación", "Alimentación", "Vivienda", "Vestimenta", "Turismo"];
 
 function getPasos(tipo) {
   const esRimpe = TIPOS_RIMPE.includes(tipo);
@@ -314,10 +315,12 @@ export default function DeclaracionIRPage() {
         setAnticipos(dec.anticipos_pagados || 0);
       } else {
         // Pre-llenar desde perfil, AGP y facturas (AGP tiene prioridad sobre facturas)
+        // "Educación" is the legacy DB value — catSumEdu counts both for backwards compatibility
         const catSum = (cat) => fs.filter(f => !f.es_venta && f.categoria === cat).reduce((a, f) => a + (f.monto || 0), 0);
+        const catSumEdu = () => catSum("Educación, arte y cultura") + catSum("Educación");
         setSueldoAnual(esDependencia ? ingresoMensual * 12 : 0);
         const salud = agp?.total_salud || catSum("Salud");
-        const educacion = agp?.total_educacion || catSum("Educación");
+        const educacion = agp?.total_educacion || catSumEdu();
         const alimentacion = agp?.total_alimentacion || catSum("Alimentación");
         const vivienda = agp?.total_vivienda || catSum("Vivienda");
         const vestimenta = agp?.total_vestimenta || catSum("Vestimenta");
@@ -631,7 +634,7 @@ export default function DeclaracionIRPage() {
               }}>Auto</span>
             </div>
             <p style={{ color: C.textDim, fontSize: 12, marginBottom: 16 }}>
-              Facturas de compra que no son gastos personales (Salud, Educación, Alimentación, Vivienda, Vestimenta).
+              Facturas de compra que no son gastos personales (Salud, Educación arte y cultura, Alimentación, Vivienda, Vestimenta).
             </p>
             <div style={{
               background: C.green, borderRadius: 10, padding: "14px 18px",
@@ -768,7 +771,7 @@ export default function DeclaracionIRPage() {
             </p>
             {[
               { label: "Salud", value: gpSalud, set: setGpSalud, icon: "medication" },
-              { label: "Educación", value: gpEducacion, set: setGpEducacion, icon: "school" },
+              { label: "Educación, arte y cultura", value: gpEducacion, set: setGpEducacion, icon: "school" },
               { label: "Alimentación", value: gpAlimentacion, set: setGpAlimentacion, icon: "shopping_cart" },
               { label: "Vivienda", value: gpVivienda, set: setGpVivienda, icon: "home" },
               { label: "Vestimenta", value: gpVestimenta, set: setGpVestimenta, icon: "checkroom" },
@@ -1071,7 +1074,7 @@ export default function DeclaracionIRPage() {
           null,
           { cas: "401", label: "Gastos deducibles del negocio", value: totalGastosNegocio },
           { cas: "451", label: "Gastos personales — Salud", value: gpSalud },
-          { cas: "452", label: "Gastos personales — Educación", value: gpEducacion },
+          { cas: "452", label: "Gastos personales — Educación, arte y cultura", value: gpEducacion },
           { cas: "453", label: "Gastos personales — Alimentación", value: gpAlimentacion },
           { cas: "454", label: "Gastos personales — Vivienda", value: gpVivienda },
           { cas: "455", label: "Gastos personales — Vestimenta", value: gpVestimenta },

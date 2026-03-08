@@ -25,7 +25,7 @@ export const C = {
 export const catColors = {
   "Alimentación": C.greenAccent,
   "Salud": C.blue,
-  "Educación": C.purple,
+  "Educación, arte y cultura": C.purple,
   "Vivienda": C.orange,
   "Vestimenta": C.pink,
   "Turismo": C.teal,
@@ -38,7 +38,7 @@ export const catColors = {
 export const catIcons = {
   "Alimentación": "shopping_cart",
   "Salud": "medication",
-  "Educación": "school",
+  "Educación, arte y cultura": "school",
   "Vivienda": "home",
   "Vestimenta": "checkroom",
   "Turismo": "flight",
@@ -50,14 +50,14 @@ export const catIcons = {
 
 export const CAT_SRI = {
   "Vivienda": { field: 106 },
-  "Educación": { field: 107 },
+  "Educación, arte y cultura": { field: 107 },
   "Salud": { field: 108 },
   "Vestimenta": { field: 109 },
   "Alimentación": { field: 110 },
   "Turismo": { field: 111 },
 };
 
-export const CATEGORIAS = ["Alimentación", "Salud", "Educación", "Vivienda", "Vestimenta", "Turismo", "Otros"];
+export const CATEGORIAS = ["Alimentación", "Salud", "Educación, arte y cultura", "Vivienda", "Vestimenta", "Turismo", "Otros"];
 
 export const CANASTA = 821.80; // SRI 2026 value
 

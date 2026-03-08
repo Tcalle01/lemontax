@@ -236,13 +236,13 @@ function categorizar(emisor: string, descripciones: string): string {
   if (/(comida|gastronomia|buffet|catering|cocina|almuerzo|desayuno|merienda|menu del dia)/.test(txt)) return "Alimentación";
 
   // ── Educación (internet aquí per regla SRI 2024) ──────────────────────────
-  if (/(universidad|usfq|puce\b|uce\b|ute\b|udla\b|espe\b|espol\b|flacso|colegio|escuela|academia|instituto\b|politecnica|sede educativa|conservatorio)/.test(txt)) return "Educación";
-  if (/(educacion|aprendizaje|capacitacion|formacion|entrenamiento|training|workshop|seminario|congreso|conferencia|e-learning)/.test(txt)) return "Educación";
-  if (/(curso|taller|tutoria|coaching|mentoring|maestria|doctorado|posgrado|certificacion|matricula)/.test(txt)) return "Educación";
-  if (/(libreria|libro|libros|material escolar|utiles escolares|papeleria|impresion|imprenta|texto escolar)/.test(txt)) return "Educación";
-  if (/(idiomas|ingles|frances|aleman|chino|mandarin|lenguaje|linguistica|bilingue)/.test(txt)) return "Educación";
-  if (/(internet|netlife|puntonet|speednet|megadatos|openaccess|surnet|fibra optica|banda ancha|wimax)/.test(txt)) return "Educación";
-  if (/(arte\b|cultura\b|musica|pintura|teatro|danza|cine\b|museo\b|galeria|ballet|literatura|concierto)/.test(txt)) return "Educación";
+  if (/(universidad|usfq|puce\b|uce\b|ute\b|udla\b|espe\b|espol\b|flacso|colegio|escuela|academia|instituto\b|politecnica|sede educativa|conservatorio)/.test(txt)) return "Educación, arte y cultura";
+  if (/(educacion|aprendizaje|capacitacion|formacion|entrenamiento|training|workshop|seminario|congreso|conferencia|e-learning)/.test(txt)) return "Educación, arte y cultura";
+  if (/(curso|taller|tutoria|coaching|mentoring|maestria|doctorado|posgrado|certificacion|matricula)/.test(txt)) return "Educación, arte y cultura";
+  if (/(libreria|libro|libros|material escolar|utiles escolares|papeleria|impresion|imprenta|texto escolar)/.test(txt)) return "Educación, arte y cultura";
+  if (/(idiomas|ingles|frances|aleman|chino|mandarin|lenguaje|linguistica|bilingue)/.test(txt)) return "Educación, arte y cultura";
+  if (/(internet|netlife|puntonet|speednet|megadatos|openaccess|surnet|fibra optica|banda ancha|wimax)/.test(txt)) return "Educación, arte y cultura";
+  if (/(arte\b|cultura\b|musica|pintura|teatro|danza|cine\b|museo\b|galeria|ballet|literatura|concierto)/.test(txt)) return "Educación, arte y cultura";
 
   // ── Vestimenta ─────────────────────────────────────────────────────────────
   if (/(de prati|etafashion|eta fashion|tennis\b|marathon sport|buen precio|el bosque\b|la ganga)/.test(txt)) return "Vestimenta";
@@ -272,7 +272,7 @@ function categorizar(emisor: string, descripciones: string): string {
   return "Otros";
 }
 
-const CATS = ["Alimentación", "Salud", "Educación", "Vivienda", "Vestimenta", "Turismo", "Otros"] as const;
+const CATS = ["Alimentación", "Salud", "Educación, arte y cultura", "Vivienda", "Vestimenta", "Turismo", "Otros"] as const;
 type Categoria = typeof CATS[number];
 
 // Usa Claude Haiku para categorizar en batch lo que el regex no pudo resolver
@@ -295,7 +295,7 @@ Responde SOLO con un JSON array de strings en el mismo orden. Sin texto extra.
 Criterios:
 - Alimentación: supermercados, restaurantes, comida, bebidas, delivery, panaderías
 - Salud: farmacias, hospitales, clínicas, consultas médicas, exámenes, laboratorios, terapias, ópticas, dentistas, seguros médicos o de salud (Equivida, Humana, etc.)
-- Educación: colegios, universidades, cursos, libros, útiles escolares, internet, arte, cultura, idiomas
+- Educación, arte y cultura: colegios, universidades, cursos, libros, útiles escolares, internet, arte, cultura, idiomas
 - Vivienda: arriendo, luz eléctrica, agua potable, gas, telefonía, cable TV, construcción, ferretería, muebles
 - Vestimenta: ropa, zapatos, calzado, accesorios de moda, telas
 - Turismo: hoteles, vuelos, tours, agencias de viaje, balnearios, hospedaje

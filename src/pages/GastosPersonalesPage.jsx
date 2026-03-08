@@ -7,13 +7,13 @@ import { usePerfil } from "../hooks/usePerfil";
 import { supabase } from "../supabase";
 import { generarFormularioGP, generarAnexoGSP } from "../sriExport";
 
-const CATS_DEDUCIBLES = ["Salud", "Educación", "Alimentación", "Vivienda", "Vestimenta", "Turismo"];
-const CATS_ICONS = { Salud: "medication", Educación: "school", Alimentación: "shopping_cart", Vivienda: "home", Vestimenta: "checkroom", Turismo: "flight" };
+const CATS_DEDUCIBLES = ["Salud", "Educación, arte y cultura", "Alimentación", "Vivienda", "Vestimenta", "Turismo"];
+const CATS_ICONS = { Salud: "medication", "Educación, arte y cultura": "school", Alimentación: "shopping_cart", Vivienda: "home", Vestimenta: "checkroom", Turismo: "flight" };
 const LIMITE_MAX = 15817;
 
 const OPCIONES_CLASIFICACION = [
   { cat: "Salud", icon: "medication" },
-  { cat: "Educación", icon: "school" },
+  { cat: "Educación, arte y cultura", icon: "school" },
   { cat: "Alimentación", icon: "shopping_cart" },
   { cat: "Vivienda", icon: "home" },
   { cat: "Vestimenta", icon: "checkroom" },
@@ -117,7 +117,7 @@ export default function GastosPersonalesPage() {
   // Projection mode state
   const [modoInput, setModoInput] = useState("mensual");
   const [gastosMensuales, setGastosMensuales] = useState({
-    Salud: "", Educación: "", Alimentación: "", Vivienda: "", Vestimenta: "", Turismo: "",
+    Salud: "", "Educación, arte y cultura": "", Alimentación: "", Vivienda: "", Vestimenta: "", Turismo: "",
   });
   const [guardadoExito, setGuardadoExito] = useState(false);
 
@@ -152,7 +152,7 @@ export default function GastosPersonalesPage() {
         if (anioNum >= new Date().getFullYear()) {
           setGastosMensuales({
             Salud: dec.total_salud > 0 ? String((dec.total_salud / 12).toFixed(2)) : "",
-            Educación: dec.total_educacion > 0 ? String((dec.total_educacion / 12).toFixed(2)) : "",
+            "Educación, arte y cultura": dec.total_educacion > 0 ? String((dec.total_educacion / 12).toFixed(2)) : "",
             Alimentación: dec.total_alimentacion > 0 ? String((dec.total_alimentacion / 12).toFixed(2)) : "",
             Vivienda: dec.total_vivienda > 0 ? String((dec.total_vivienda / 12).toFixed(2)) : "",
             Vestimenta: dec.total_vestimenta > 0 ? String((dec.total_vestimenta / 12).toFixed(2)) : "",
@@ -165,10 +165,12 @@ export default function GastosPersonalesPage() {
   }, [user, anio, anioNum]);
 
   // Derived: invoice-based totals (past years)
+  // "Educación" is the legacy DB value — count both for backwards compatibility
   const totalesCatFacturas = {};
   CATS_DEDUCIBLES.forEach(cat => {
+    const aliases = cat === "Educación, arte y cultura" ? [cat, "Educación"] : [cat];
     totalesCatFacturas[cat] = facturas
-      .filter(f => f.categoria === cat)
+      .filter(f => aliases.includes(f.categoria))
       .reduce((sum, f) => sum + (f.monto || 0), 0);
   });
 
