@@ -29,9 +29,6 @@ export const catColors = {
   "Vivienda": C.orange,
   "Vestimenta": C.pink,
   "Turismo": C.teal,
-  "Transporte": "#52C4E0",
-  "Servicios": "#E09652",
-  "Entretenimiento": C.red,
   "Otros": "#90A4AE",
 };
 
@@ -42,9 +39,6 @@ export const catIcons = {
   "Vivienda": "home",
   "Vestimenta": "checkroom",
   "Turismo": "flight",
-  "Transporte": "local_gas_station",
-  "Servicios": "phone_iphone",
-  "Entretenimiento": "movie",
   "Otros": "receipt_long",
 };
 
@@ -57,7 +51,7 @@ export const CAT_SRI = {
   "Turismo": { field: 111 },
 };
 
-export const CATEGORIAS = ["Alimentación", "Salud", "Educación, arte y cultura", "Vivienda", "Vestimenta", "Turismo", "Otros"];
+export const CATEGORIAS = ["Alimentación", "Salud", "Educación, arte y cultura", "Vivienda", "Vestimenta", "Turismo"];
 
 export const CANASTA = 821.80; // SRI 2026 value
 
