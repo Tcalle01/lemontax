@@ -245,6 +245,7 @@ export default function DeclaracionIRPage() {
   // Datos de facturas y AGP cargados de Supabase
   const [facturas, setFacturas] = useState([]);
   const [agpData, setAgpData] = useState(null);
+  const [gpDesdeFacturas, setGpDesdeFacturas] = useState(false);
   const [loading, setLoading] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [modal, setModal] = useState(null); // "casillas" | "instrucciones" | "presentada"
@@ -315,12 +316,21 @@ export default function DeclaracionIRPage() {
         // Pre-llenar desde perfil, AGP y facturas (AGP tiene prioridad sobre facturas)
         const catSum = (cat) => fs.filter(f => !f.es_venta && f.categoria === cat).reduce((a, f) => a + (f.monto || 0), 0);
         setSueldoAnual(esDependencia ? ingresoMensual * 12 : 0);
-        setGpSalud(agp?.total_salud || catSum("Salud"));
-        setGpEducacion(agp?.total_educacion || catSum("Educación"));
-        setGpAlimentacion(agp?.total_alimentacion || catSum("Alimentación"));
-        setGpVivienda(agp?.total_vivienda || catSum("Vivienda"));
-        setGpVestimenta(agp?.total_vestimenta || catSum("Vestimenta"));
-        setGpTurismo(agp?.total_turismo || catSum("Turismo"));
+        const salud = agp?.total_salud || catSum("Salud");
+        const educacion = agp?.total_educacion || catSum("Educación");
+        const alimentacion = agp?.total_alimentacion || catSum("Alimentación");
+        const vivienda = agp?.total_vivienda || catSum("Vivienda");
+        const vestimenta = agp?.total_vestimenta || catSum("Vestimenta");
+        const turismo = agp?.total_turismo || catSum("Turismo");
+        setGpSalud(salud);
+        setGpEducacion(educacion);
+        setGpAlimentacion(alimentacion);
+        setGpVivienda(vivienda);
+        setGpVestimenta(vestimenta);
+        setGpTurismo(turismo);
+        if (!agp && (salud + educacion + alimentacion + vivienda + vestimenta + turismo) > 0) {
+          setGpDesdeFacturas(true);
+        }
       }
 
       setLoading(false);
@@ -706,6 +716,22 @@ export default function DeclaracionIRPage() {
                 </p>
               </div>
             </div>
+          ) : gpDesdeFacturas ? (
+            <div style={{
+              background: "#4CAF8210", border: "1px solid #4CAF8230",
+              borderRadius: 12, padding: "12px 16px", marginBottom: 20,
+              display: "flex", alignItems: "center", gap: 10,
+            }}>
+              <Icon name="auto_awesome" color={C.greenAccent} size={18} />
+              <div style={{ flex: 1 }}>
+                <p style={{ color: C.text, fontSize: 13, fontWeight: 700 }}>
+                  Valores calculados desde tus facturas clasificadas
+                </p>
+                <p style={{ color: C.textDim, fontSize: 12 }}>
+                  Se sumaron automáticamente tus gastos por categoría. Puedes editarlos o ir al módulo AGP para una declaración más precisa.
+                </p>
+              </div>
+            </div>
           ) : (
             <div style={{
               background: C.yellow + "18", border: `1px solid ${C.yellow}60`,
@@ -753,7 +779,7 @@ export default function DeclaracionIRPage() {
                 label={label}
                 value={value}
                 onChange={set}
-                autoFilled={!!agpData}
+                autoFilled={!!agpData || gpDesdeFacturas}
               />
             ))}
           </div>
