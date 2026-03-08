@@ -8,6 +8,7 @@ import { supabase } from "../supabase";
 import { generarFormularioGP, generarAnexoGSP } from "../sriExport";
 
 const CATS_DEDUCIBLES = ["Salud", "Educación", "Alimentación", "Vivienda", "Vestimenta", "Turismo"];
+const CATS_ICONS = { Salud: "medication", Educación: "school", Alimentación: "shopping_cart", Vivienda: "home", Vestimenta: "checkroom", Turismo: "flight" };
 const LIMITE_MAX = 15817;
 
 const OPCIONES_CLASIFICACION = [
@@ -113,7 +114,15 @@ export default function GastosPersonalesPage() {
   const [guardando, setGuardando] = useState(false);
   const [generando, setGenerando] = useState(false);
 
+  // Projection mode state
+  const [modoInput, setModoInput] = useState("mensual");
+  const [gastosMensuales, setGastosMensuales] = useState({
+    Salud: "", Educación: "", Alimentación: "", Vivienda: "", Vestimenta: "", Turismo: "",
+  });
+  const [guardadoExito, setGuardadoExito] = useState(false);
+
   const anioNum = parseInt(anio);
+  const esProyeccion = anioNum >= new Date().getFullYear();
 
   useEffect(() => {
     if (!user) return;
@@ -137,23 +146,44 @@ export default function GastosPersonalesPage() {
         );
       }
       if (decRes.status === "fulfilled" && decRes.value.data) {
-        setDeclaracion(decRes.value.data);
+        const dec = decRes.value.data;
+        setDeclaracion(dec);
+        // Pre-fill projection inputs from saved declaracion
+        if (anioNum >= new Date().getFullYear()) {
+          setGastosMensuales({
+            Salud: dec.total_salud > 0 ? String((dec.total_salud / 12).toFixed(2)) : "",
+            Educación: dec.total_educacion > 0 ? String((dec.total_educacion / 12).toFixed(2)) : "",
+            Alimentación: dec.total_alimentacion > 0 ? String((dec.total_alimentacion / 12).toFixed(2)) : "",
+            Vivienda: dec.total_vivienda > 0 ? String((dec.total_vivienda / 12).toFixed(2)) : "",
+            Vestimenta: dec.total_vestimenta > 0 ? String((dec.total_vestimenta / 12).toFixed(2)) : "",
+            Turismo: dec.total_turismo > 0 ? String((dec.total_turismo / 12).toFixed(2)) : "",
+          });
+        }
       }
       setLoading(false);
     });
   }, [user, anio, anioNum]);
 
-  // Derived
-  const sinClasificar = facturas.filter(
-    f => !f.categoria || f.categoria.trim() === ""
-  );
-
-  const totalesCat = {};
+  // Derived: invoice-based totals (past years)
+  const totalesCatFacturas = {};
   CATS_DEDUCIBLES.forEach(cat => {
-    totalesCat[cat] = facturas
+    totalesCatFacturas[cat] = facturas
       .filter(f => f.categoria === cat)
       .reduce((sum, f) => sum + (f.monto || 0), 0);
   });
+
+  // Derived: projection-based totals (current/future year)
+  const totalesCatProyectados = {};
+  CATS_DEDUCIBLES.forEach(cat => {
+    const val = parseFloat(gastosMensuales[cat] || 0);
+    totalesCatProyectados[cat] = modoInput === "mensual" ? val * 12 : val;
+  });
+
+  const totalesCat = esProyeccion ? totalesCatProyectados : totalesCatFacturas;
+
+  const sinClasificar = esProyeccion
+    ? []
+    : facturas.filter(f => !f.categoria || f.categoria.trim() === "");
 
   const totalDeducible = Object.values(totalesCat).reduce((sum, v) => sum + v, 0);
   const ingresosAnuales = parseFloat(perfil.salario || 0) * 12 + totalVentas;
@@ -165,9 +195,11 @@ export default function GastosPersonalesPage() {
   const ahorroAdicional = Math.min(potencialSinClasificar, Math.max(0, limite - efectivo)) * 0.15;
 
   const perfilValido = !!(perfil.cedula && perfil.nombre);
-  const estadoAgp = declaracion?.estado === "presentada"
-    ? "presentada"
-    : sinClasificar.length === 0 ? "lista" : "pendiente";
+  const estadoAgp = esProyeccion
+    ? (declaracion ? "proyeccion_guardada" : "proyeccion_nueva")
+    : declaracion?.estado === "presentada"
+      ? "presentada"
+      : sinClasificar.length === 0 ? "lista" : "pendiente";
 
   const clasificar = async (facturaId, categoria) => {
     if (clasificandoId) return;
@@ -187,6 +219,33 @@ export default function GastosPersonalesPage() {
     } else {
       setClasificandoId(null);
     }
+  };
+
+  const guardarProyeccion = async () => {
+    setGuardando(true);
+    const payload = {
+      user_id: user.id,
+      anio_fiscal: anioNum,
+      total_salud: totalesCat["Salud"] || 0,
+      total_educacion: totalesCat["Educación"] || 0,
+      total_alimentacion: totalesCat["Alimentación"] || 0,
+      total_vivienda: totalesCat["Vivienda"] || 0,
+      total_vestimenta: totalesCat["Vestimenta"] || 0,
+      total_turismo: totalesCat["Turismo"] || 0,
+      total_deducible: totalDeducible,
+      ahorro_estimado: ahorroEstimado,
+      estado: "borrador",
+    };
+    const { data, error } = await supabase.from("declaraciones_agp")
+      .upsert(payload, { onConflict: "user_id,anio_fiscal" })
+      .select()
+      .single();
+    if (!error && data) {
+      setDeclaracion(data);
+      setGuardadoExito(true);
+      setTimeout(() => setGuardadoExito(false), 3000);
+    }
+    setGuardando(false);
   };
 
   const marcarPresentada = async () => {
@@ -289,7 +348,10 @@ export default function GastosPersonalesPage() {
               Gastos personales deducibles {anio}
             </h1>
             <p style={{ color: C.textMid, fontSize: 13, marginTop: 6, maxWidth: 520, lineHeight: 1.6 }}>
-              Clasifica tus facturas de compras para pagar menos impuesto en tu declaración de renta anual
+              {esProyeccion
+                ? `Proyecta cuánto planeas gastar este año en cada rubro para estimar tu ahorro en renta`
+                : "Clasifica tus facturas de compras para pagar menos impuesto en tu declaración de renta anual"
+              }
             </p>
           </div>
           {estadoAgp === "presentada" ? (
@@ -300,6 +362,14 @@ export default function GastosPersonalesPage() {
             <span style={{ fontSize: 12, fontWeight: 700, padding: "6px 14px", borderRadius: 20, background: C.blue + "20", color: C.blue, display: "flex", alignItems: "center", gap: 6, alignSelf: "flex-start" }}>
               <Icon name="task_alt" color={C.blue} size={14} /> Lista para presentar
             </span>
+          ) : estadoAgp === "proyeccion_guardada" ? (
+            <span style={{ fontSize: 12, fontWeight: 700, padding: "6px 14px", borderRadius: 20, background: C.yellow + "30", color: "#D4A017", display: "flex", alignItems: "center", gap: 6, alignSelf: "flex-start" }}>
+              <Icon name="bookmark" color="#D4A017" size={14} /> Proyección guardada
+            </span>
+          ) : estadoAgp === "proyeccion_nueva" ? (
+            <span style={{ fontSize: 12, fontWeight: 700, padding: "6px 14px", borderRadius: 20, background: C.greenAccent + "15", color: C.greenAccent, display: "flex", alignItems: "center", gap: 6, alignSelf: "flex-start" }}>
+              <Icon name="trending_up" color={C.greenAccent} size={14} /> Proyección
+            </span>
           ) : (
             <span style={{ fontSize: 12, fontWeight: 700, padding: "6px 14px", borderRadius: 20, background: C.yellow + "30", color: "#D4A017", display: "flex", alignItems: "center", gap: 6, alignSelf: "flex-start" }}>
               <Icon name="pending" color="#D4A017" size={14} /> Pendiente
@@ -308,47 +378,174 @@ export default function GastosPersonalesPage() {
         </div>
         <p style={{ color: C.textDim, fontSize: 12, marginTop: 10, display: "flex", alignItems: "center", gap: 5 }}>
           <Icon name="schedule" color={C.textDim} size={13} />
-          Debes presentar esto en febrero {anioNum + 1}
+          {esProyeccion
+            ? `Presentarás esto en febrero ${anioNum + 1} — esta es tu planificación anticipada`
+            : `Debes presentar esto en febrero ${anioNum + 1}`
+          }
         </p>
       </div>
 
-      {/* ─── Sección 1: Sin clasificar ─── */}
-      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 24, marginBottom: 20, boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-          <Icon name="help_outline" color={sinClasificar.length > 0 ? "#D4A017" : C.greenAccent} size={20} />
-          <p style={{ color: C.text, fontSize: 15, fontWeight: 700 }}>Facturas sin clasificar</p>
-        </div>
-        {sinClasificar.length === 0 ? (
-          <div style={{ display: "flex", alignItems: "center", gap: 10, background: C.greenAccent + "12", borderRadius: 10, padding: "14px 18px" }}>
-            <Icon name="check_circle" color={C.greenAccent} size={20} />
-            <p style={{ color: C.greenAccent, fontSize: 13, fontWeight: 600 }}>Todas tus facturas están clasificadas</p>
+      {/* ─── Sección 1: Proyección (año actual) o Clasificación (año pasado) ─── */}
+      {esProyeccion ? (
+        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 24, marginBottom: 20, boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4, flexWrap: "wrap", gap: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <Icon name="trending_up" color={C.greenAccent} size={20} />
+              <p style={{ color: C.text, fontSize: 15, fontWeight: 700 }}>Planea tus gastos para {anio}</p>
+            </div>
+            {/* Mensual / Anual toggle */}
+            <div style={{ display: "flex", background: C.surface, borderRadius: 8, padding: 3, gap: 2 }}>
+              <button
+                onClick={() => setModoInput("mensual")}
+                style={{
+                  padding: "6px 16px", borderRadius: 6, border: "none",
+                  background: modoInput === "mensual" ? C.green : "transparent",
+                  color: modoInput === "mensual" ? C.white : C.textMid,
+                  fontSize: 12, fontWeight: 700, cursor: "pointer",
+                  fontFamily: "DM Sans, sans-serif", transition: "all 0.15s",
+                }}
+              >
+                Mensual
+              </button>
+              <button
+                onClick={() => setModoInput("anual")}
+                style={{
+                  padding: "6px 16px", borderRadius: 6, border: "none",
+                  background: modoInput === "anual" ? C.green : "transparent",
+                  color: modoInput === "anual" ? C.white : C.textMid,
+                  fontSize: 12, fontWeight: 700, cursor: "pointer",
+                  fontFamily: "DM Sans, sans-serif", transition: "all 0.15s",
+                }}
+              >
+                Anual
+              </button>
+            </div>
           </div>
-        ) : (
-          <>
-            <div style={{ background: C.yellow + "25", border: `1px solid ${C.yellow}50`, borderRadius: 10, padding: "12px 16px", marginBottom: 16 }}>
-              <p style={{ color: C.green, fontSize: 13, fontWeight: 600 }}>
-                Tienes {sinClasificar.length} factura{sinClasificar.length !== 1 ? "s" : ""} sin clasificar
-              </p>
+          <p style={{ color: C.textDim, fontSize: 13, marginBottom: 20, lineHeight: 1.5 }}>
+            Ingresa cuánto planeas gastar en cada rubro. Te mostraremos cuánto podrías ahorrar en tu declaración de renta de {anio}.
+          </p>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {CATS_DEDUCIBLES.map(cat => {
+              const color = catColors[cat] || C.greenAccent;
+              const icon = CATS_ICONS[cat] || "receipt_long";
+              const val = parseFloat(gastosMensuales[cat] || 0);
+              const anual = modoInput === "mensual" ? val * 12 : val;
+              return (
+                <div key={cat} style={{
+                  display: "flex", alignItems: "center", gap: 12,
+                  background: C.surface, borderRadius: 10, padding: "12px 16px",
+                }}>
+                  <div style={{
+                    width: 36, height: 36, borderRadius: 9, background: color + "20",
+                    display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+                  }}>
+                    <Icon name={icon} color={color} size={18} />
+                  </div>
+                  <span style={{ color: C.text, fontSize: 13, fontWeight: 600, flex: 1, minWidth: 80 }}>{cat}</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <div style={{ position: "relative" }}>
+                      <span style={{
+                        position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)",
+                        color: C.textMid, fontSize: 13, fontWeight: 600, pointerEvents: "none",
+                      }}>$</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={gastosMensuales[cat]}
+                        onChange={e => setGastosMensuales(prev => ({ ...prev, [cat]: e.target.value }))}
+                        placeholder="0.00"
+                        style={{
+                          width: 110, padding: "8px 10px 8px 22px",
+                          background: C.card, border: `1.5px solid ${C.border}`, borderRadius: 8,
+                          color: C.text, fontSize: 13, outline: "none",
+                          fontFamily: "DM Sans, sans-serif",
+                        }}
+                      />
+                    </div>
+                    <span style={{ color: C.textDim, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>
+                      {modoInput === "mensual" ? "/mes" : "/año"}
+                    </span>
+                    {modoInput === "mensual" && val > 0 && (
+                      <span style={{ color: C.greenAccent, fontSize: 11, fontWeight: 700, whiteSpace: "nowrap", minWidth: 68, textAlign: "right" }}>
+                        = {fmt(anual)}/año
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div style={{ marginTop: 20, display: "flex", alignItems: "center", gap: 12 }}>
+            <button
+              onClick={guardarProyeccion}
+              disabled={guardando || totalDeducible === 0}
+              style={{
+                padding: "11px 22px",
+                background: totalDeducible > 0 ? C.green : C.border,
+                color: totalDeducible > 0 ? C.white : C.textDim,
+                border: "none", borderRadius: 10,
+                fontSize: 13, fontWeight: 700,
+                cursor: totalDeducible > 0 && !guardando ? "pointer" : "not-allowed",
+                fontFamily: "DM Sans, sans-serif",
+                display: "flex", alignItems: "center", gap: 8,
+                transition: "all 0.15s",
+              }}
+            >
+              <Icon name="bookmark" color={totalDeducible > 0 ? C.white : C.textDim} size={16} />
+              {guardando ? "Guardando..." : "Guardar proyección"}
+            </button>
+            {guardadoExito && (
+              <div style={{ display: "flex", alignItems: "center", gap: 6, color: C.greenAccent, fontSize: 13, fontWeight: 600 }}>
+                <Icon name="check_circle" color={C.greenAccent} size={16} />
+                Guardada correctamente
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        /* ─── Sección 1: Sin clasificar (años pasados) ─── */
+        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 24, marginBottom: 20, boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+            <Icon name="help_outline" color={sinClasificar.length > 0 ? "#D4A017" : C.greenAccent} size={20} />
+            <p style={{ color: C.text, fontSize: 15, fontWeight: 700 }}>Facturas sin clasificar</p>
+          </div>
+          {sinClasificar.length === 0 ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 10, background: C.greenAccent + "12", borderRadius: 10, padding: "14px 18px" }}>
+              <Icon name="check_circle" color={C.greenAccent} size={20} />
+              <p style={{ color: C.greenAccent, fontSize: 13, fontWeight: 600 }}>Todas tus facturas están clasificadas</p>
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {sinClasificar.map(f => (
-                <FacturaSinClasificar
-                  key={f.id}
-                  factura={f}
-                  clasificando={clasificandoId === f.id}
-                  onClasificar={cat => clasificar(f.id, cat)}
-                  onNoDeducible={() => clasificar(f.id, "Otros")}
-                />
-              ))}
-            </div>
-          </>
-        )}
-      </div>
+          ) : (
+            <>
+              <div style={{ background: C.yellow + "25", border: `1px solid ${C.yellow}50`, borderRadius: 10, padding: "12px 16px", marginBottom: 16 }}>
+                <p style={{ color: C.green, fontSize: 13, fontWeight: 600 }}>
+                  Tienes {sinClasificar.length} factura{sinClasificar.length !== 1 ? "s" : ""} sin clasificar
+                </p>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {sinClasificar.map(f => (
+                  <FacturaSinClasificar
+                    key={f.id}
+                    factura={f}
+                    clasificando={clasificandoId === f.id}
+                    onClasificar={cat => clasificar(f.id, cat)}
+                    onNoDeducible={() => clasificar(f.id, "Otros")}
+                  />
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       {/* ─── Sección 2: Resumen por categoría ─── */}
       <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 24, marginBottom: 20, boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-          <p style={{ color: C.text, fontSize: 15, fontWeight: 700 }}>Tu resumen de gastos deducibles</p>
+          <p style={{ color: C.text, fontSize: 15, fontWeight: 700 }}>
+            {esProyeccion ? "Tu proyección de gastos deducibles" : "Tu resumen de gastos deducibles"}
+          </p>
           <span style={{ color: C.greenAccent, fontSize: 13, fontWeight: 700 }}>Límite: {fmt(limite)}</span>
         </div>
         <p style={{ color: C.textDim, fontSize: 12, marginBottom: 20 }}>
@@ -397,14 +594,18 @@ export default function GastosPersonalesPage() {
       <div style={{ background: C.cardDark, borderRadius: 16, padding: 24, marginBottom: 20, boxShadow: "0 2px 12px rgba(26,58,42,0.12)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
           <Icon name="savings" color={C.yellow} size={24} />
-          <p style={{ color: C.white, fontSize: 15, fontWeight: 700 }}>Tu ahorro estimado en renta</p>
+          <p style={{ color: C.white, fontSize: 15, fontWeight: 700 }}>
+            {esProyeccion ? "Tu ahorro estimado proyectado" : "Tu ahorro estimado en renta"}
+          </p>
         </div>
         <p style={{ color: C.yellow, fontSize: 36, fontWeight: 800, fontFamily: "Syne, sans-serif", marginBottom: 8 }}>
           {fmt(ahorroEstimado)}
         </p>
         <p style={{ color: "rgba(255,255,255,0.6)", fontSize: 13, marginBottom: sinClasificar.length > 0 && ahorroAdicional > 0 ? 16 : 0, lineHeight: 1.6 }}>
-          Gracias a tus gastos deducibles, podrías pagar {fmt(ahorroEstimado)} menos en tu declaración de renta
-          (tasa marginal estimada del 15%)
+          {esProyeccion
+            ? `Si gastas según tu proyección, podrías ahorrar ${fmt(ahorroEstimado)} en tu declaración de renta ${anio} (tasa marginal estimada del 15%)`
+            : `Gracias a tus gastos deducibles, podrías pagar ${fmt(ahorroEstimado)} menos en tu declaración de renta (tasa marginal estimada del 15%)`
+          }
         </p>
         {sinClasificar.length > 0 && ahorroAdicional > 0 && (
           <div style={{ background: C.yellow + "18", border: `1px solid ${C.yellow}35`, borderRadius: 10, padding: "12px 16px" }}>
@@ -415,111 +616,124 @@ export default function GastosPersonalesPage() {
         )}
       </div>
 
-      {/* ─── Sección 4: Listo para presentar ─── */}
-      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 24, boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
-        <p style={{ color: C.text, fontSize: 15, fontWeight: 700, marginBottom: 6 }}>Listo para presentar</p>
-        <p style={{ color: C.textMid, fontSize: 13, marginBottom: !perfilValido ? 16 : 20, lineHeight: 1.6 }}>
-          Genera tus formularios listos para ingresar en el portal del SRI.
-        </p>
-        {!perfilValido && (
-          <div style={{ background: C.yellow + "22", border: `1px solid ${C.yellow}50`, borderRadius: 10, padding: "12px 16px", marginBottom: 20, display: "flex", alignItems: "center", gap: 8 }}>
-            <Icon name="warning" color={C.green} size={16} />
-            <p style={{ color: C.green, fontSize: 13, fontWeight: 600 }}>Completa tu cédula y nombre en Ajustes antes de generar</p>
-          </div>
-        )}
-
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 24 }}>
-          <button
-            onClick={handleGenerarGP}
-            disabled={!perfilValido || generando}
-            style={{
-              padding: "12px 22px", background: perfilValido ? C.green : C.border,
-              color: perfilValido ? C.white : C.textDim, border: "none", borderRadius: 10,
-              fontSize: 13, fontWeight: 700, cursor: perfilValido ? "pointer" : "not-allowed",
-              fontFamily: "DM Sans, sans-serif", display: "flex", alignItems: "center", gap: 8,
-            }}
-          >
-            <Icon name="download" color={perfilValido ? C.white : C.textDim} size={17} /> Formulario GP
-          </button>
-          <button
-            onClick={handleGenerarGSP}
-            disabled={!perfilValido || generando}
-            style={{
-              padding: "12px 22px", background: "transparent", color: C.green,
-              border: `2px solid ${perfilValido ? C.green + "60" : C.border}`, borderRadius: 10,
-              fontSize: 13, fontWeight: 700, cursor: perfilValido ? "pointer" : "not-allowed",
-              fontFamily: "DM Sans, sans-serif", display: "flex", alignItems: "center", gap: 8,
-            }}
-          >
-            <Icon name="download" color={perfilValido ? C.green : C.textDim} size={17} /> Anexo GSP
-          </button>
-          <button
-            onClick={handleGenerarAmbos}
-            disabled={!perfilValido || generando}
-            style={{
-              padding: "12px 22px", background: "transparent", color: C.textMid,
-              border: `1px solid ${C.border}`, borderRadius: 10,
-              fontSize: 13, fontWeight: 600, cursor: perfilValido ? "pointer" : "not-allowed",
-              fontFamily: "DM Sans, sans-serif",
-            }}
-          >
-            {generando ? "Generando..." : "Generar ambos"}
-          </button>
-        </div>
-
-        {/* Instrucciones */}
-        <div style={{ background: C.surface, borderRadius: 12, padding: "18px 20px", marginBottom: 20 }}>
-          <p style={{ color: C.text, fontSize: 13, fontWeight: 700, marginBottom: 14 }}>Cómo presentar en sri.gob.ec</p>
-          {[
-            "Descarga el Formulario GP y el Anexo GSP con los botones de arriba",
-            "Entra a sri.gob.ec → Servicios en línea e inicia sesión con tu clave",
-            "En el menú de declaraciones busca 'Gastos Personales'",
-            "Sube el Formulario GP y el Anexo GSP donde te los pida el sistema",
-            "Revisa los montos, confirma el envío y guarda tu número de trámite",
-          ].map((paso, i) => (
-            <div key={i} style={{ display: "flex", gap: 12, marginBottom: i < 4 ? 12 : 0 }}>
-              <div style={{
-                width: 22, height: 22, borderRadius: 11, background: C.greenAccent,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                flexShrink: 0, fontSize: 11, fontWeight: 800, color: C.white,
-              }}>
-                {i + 1}
-              </div>
-              <p style={{ color: C.textMid, fontSize: 13, lineHeight: 1.5 }}>{paso}</p>
-            </div>
-          ))}
-        </div>
-
-        <p style={{ color: C.textDim, fontSize: 12, marginBottom: 20 }}>
-          Tienes tiempo hasta febrero {anioNum + 1} para presentar esto
-        </p>
-
-        {declaracion?.estado === "presentada" ? (
-          <div style={{ display: "flex", alignItems: "center", gap: 12, background: C.greenAccent + "12", border: `1px solid ${C.greenAccent}40`, borderRadius: 10, padding: "16px 18px" }}>
-            <Icon name="check_circle" color={C.greenAccent} size={22} />
+      {/* ─── Sección 4: Listo para presentar (solo años pasados) ─── */}
+      {esProyeccion ? (
+        <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16, padding: 24, boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+            <Icon name="info" color={C.textDim} size={18} style={{ flexShrink: 0, marginTop: 1 }} />
             <div>
-              <p style={{ color: C.greenAccent, fontSize: 13, fontWeight: 700 }}>Marcada como presentada</p>
-              {declaracion.fecha_presentacion && (
-                <p style={{ color: C.textDim, fontSize: 11, marginTop: 2 }}>
-                  Presentada el {new Date(declaracion.fecha_presentacion + "T12:00:00").toLocaleDateString("es-EC", { day: "numeric", month: "long", year: "numeric" })}
-                </p>
-              )}
+              <p style={{ color: C.textMid, fontSize: 13, lineHeight: 1.6 }}>
+                Esta es una <strong style={{ color: C.text }}>proyección anticipada</strong>. En febrero {anioNum + 1} deberás presentar tu declaración real de gastos personales del año {anio}, basada en tus facturas de compras reales. Guarda tu proyección ahora y vuelve a ajustarla cuando sea el momento.
+              </p>
             </div>
           </div>
-        ) : (
-          <button
-            onClick={() => setMostrarModal(true)}
-            style={{
-              width: "100%", padding: 13, borderRadius: 10,
-              border: `2px solid ${C.greenAccent}`, background: "transparent", color: C.greenAccent,
-              fontSize: 14, fontWeight: 700, cursor: "pointer",
-              fontFamily: "DM Sans, sans-serif", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-            }}
-          >
-            <Icon name="task_alt" color={C.greenAccent} size={18} /> Marcar como presentada
-          </button>
-        )}
-      </div>
+        </div>
+      ) : (
+        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 24, boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
+          <p style={{ color: C.text, fontSize: 15, fontWeight: 700, marginBottom: 6 }}>Listo para presentar</p>
+          <p style={{ color: C.textMid, fontSize: 13, marginBottom: !perfilValido ? 16 : 20, lineHeight: 1.6 }}>
+            Genera tus formularios listos para ingresar en el portal del SRI.
+          </p>
+          {!perfilValido && (
+            <div style={{ background: C.yellow + "22", border: `1px solid ${C.yellow}50`, borderRadius: 10, padding: "12px 16px", marginBottom: 20, display: "flex", alignItems: "center", gap: 8 }}>
+              <Icon name="warning" color={C.green} size={16} />
+              <p style={{ color: C.green, fontSize: 13, fontWeight: 600 }}>Completa tu cédula y nombre en Ajustes antes de generar</p>
+            </div>
+          )}
+
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 24 }}>
+            <button
+              onClick={handleGenerarGP}
+              disabled={!perfilValido || generando}
+              style={{
+                padding: "12px 22px", background: perfilValido ? C.green : C.border,
+                color: perfilValido ? C.white : C.textDim, border: "none", borderRadius: 10,
+                fontSize: 13, fontWeight: 700, cursor: perfilValido ? "pointer" : "not-allowed",
+                fontFamily: "DM Sans, sans-serif", display: "flex", alignItems: "center", gap: 8,
+              }}
+            >
+              <Icon name="download" color={perfilValido ? C.white : C.textDim} size={17} /> Formulario GP
+            </button>
+            <button
+              onClick={handleGenerarGSP}
+              disabled={!perfilValido || generando}
+              style={{
+                padding: "12px 22px", background: "transparent", color: C.green,
+                border: `2px solid ${perfilValido ? C.green + "60" : C.border}`, borderRadius: 10,
+                fontSize: 13, fontWeight: 700, cursor: perfilValido ? "pointer" : "not-allowed",
+                fontFamily: "DM Sans, sans-serif", display: "flex", alignItems: "center", gap: 8,
+              }}
+            >
+              <Icon name="download" color={perfilValido ? C.green : C.textDim} size={17} /> Anexo GSP
+            </button>
+            <button
+              onClick={handleGenerarAmbos}
+              disabled={!perfilValido || generando}
+              style={{
+                padding: "12px 22px", background: "transparent", color: C.textMid,
+                border: `1px solid ${C.border}`, borderRadius: 10,
+                fontSize: 13, fontWeight: 600, cursor: perfilValido ? "pointer" : "not-allowed",
+                fontFamily: "DM Sans, sans-serif",
+              }}
+            >
+              {generando ? "Generando..." : "Generar ambos"}
+            </button>
+          </div>
+
+          {/* Instrucciones */}
+          <div style={{ background: C.surface, borderRadius: 12, padding: "18px 20px", marginBottom: 20 }}>
+            <p style={{ color: C.text, fontSize: 13, fontWeight: 700, marginBottom: 14 }}>Cómo presentar en sri.gob.ec</p>
+            {[
+              "Descarga el Formulario GP y el Anexo GSP con los botones de arriba",
+              "Entra a sri.gob.ec → Servicios en línea e inicia sesión con tu clave",
+              "En el menú de declaraciones busca 'Gastos Personales'",
+              "Sube el Formulario GP y el Anexo GSP donde te los pida el sistema",
+              "Revisa los montos, confirma el envío y guarda tu número de trámite",
+            ].map((paso, i) => (
+              <div key={i} style={{ display: "flex", gap: 12, marginBottom: i < 4 ? 12 : 0 }}>
+                <div style={{
+                  width: 22, height: 22, borderRadius: 11, background: C.greenAccent,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  flexShrink: 0, fontSize: 11, fontWeight: 800, color: C.white,
+                }}>
+                  {i + 1}
+                </div>
+                <p style={{ color: C.textMid, fontSize: 13, lineHeight: 1.5 }}>{paso}</p>
+              </div>
+            ))}
+          </div>
+
+          <p style={{ color: C.textDim, fontSize: 12, marginBottom: 20 }}>
+            Tienes tiempo hasta febrero {anioNum + 1} para presentar esto
+          </p>
+
+          {declaracion?.estado === "presentada" ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 12, background: C.greenAccent + "12", border: `1px solid ${C.greenAccent}40`, borderRadius: 10, padding: "16px 18px" }}>
+              <Icon name="check_circle" color={C.greenAccent} size={22} />
+              <div>
+                <p style={{ color: C.greenAccent, fontSize: 13, fontWeight: 700 }}>Marcada como presentada</p>
+                {declaracion.fecha_presentacion && (
+                  <p style={{ color: C.textDim, fontSize: 11, marginTop: 2 }}>
+                    Presentada el {new Date(declaracion.fecha_presentacion + "T12:00:00").toLocaleDateString("es-EC", { day: "numeric", month: "long", year: "numeric" })}
+                  </p>
+                )}
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => setMostrarModal(true)}
+              style={{
+                width: "100%", padding: 13, borderRadius: 10,
+                border: `2px solid ${C.greenAccent}`, background: "transparent", color: C.greenAccent,
+                fontSize: 14, fontWeight: 700, cursor: "pointer",
+                fontFamily: "DM Sans, sans-serif", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+              }}
+            >
+              <Icon name="task_alt" color={C.greenAccent} size={18} /> Marcar como presentada
+            </button>
+          )}
+        </div>
+      )}
 
       {/* ─── Modal: Fecha presentación ─── */}
       {mostrarModal && (
