@@ -58,11 +58,16 @@ function Badge({ children, color, onClick }) {
 
 const CATS = ["Todas", ...Object.keys(catColors)];
 
+const DEFAULT_FROM = `${NOW.getFullYear()}-01-01`;
+const DEFAULT_UNTIL = NOW.toISOString().split("T")[0];
+
 function ComprasTab({ user }) {
   const [facturas, setFacturas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("Todas");
   const [search, setSearch] = useState("");
+  const [dateFrom, setDateFrom] = useState(DEFAULT_FROM);
+  const [dateUntil, setDateUntil] = useState(DEFAULT_UNTIL);
   const [editingId, setEditingId] = useState(null);
   const [editCat, setEditCat] = useState("");
 
@@ -94,7 +99,13 @@ function ComprasTab({ user }) {
       (f) =>
         f.emisor?.toLowerCase().includes(search.toLowerCase()) ||
         f.ruc?.includes(search)
-    );
+    )
+    .filter((f) => {
+      const d = f.fecha || "";
+      if (dateFrom && d < dateFrom) return false;
+      if (dateUntil && d > dateUntil) return false;
+      return true;
+    });
 
   const total = filtered.reduce((a, b) => a + (b.monto || 0), 0);
   const deducible = filtered.filter((f) => f.sri).reduce((a, b) => a + (b.monto || 0), 0);
@@ -136,31 +147,59 @@ function ComprasTab({ user }) {
       </div>
 
       {/* Filters */}
-      <div style={{ display: "flex", gap: 10, marginBottom: 16, alignItems: "center", flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 10, marginBottom: 12, alignItems: "center", flexWrap: "wrap" }}>
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Buscar por emisor o RUC..."
-          style={{ ...INPUT, width: 260 }}
+          style={{ ...INPUT, width: 240 }}
         />
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          {CATS.map((cat) => (
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ color: C.textDim, fontSize: 12, fontWeight: 600, whiteSpace: "nowrap" }}>Desde</span>
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            style={{ ...INPUT, width: 148, padding: "8px 10px" }}
+          />
+          <span style={{ color: C.textDim, fontSize: 12, fontWeight: 600, whiteSpace: "nowrap" }}>Hasta</span>
+          <input
+            type="date"
+            value={dateUntil}
+            onChange={(e) => setDateUntil(e.target.value)}
+            style={{ ...INPUT, width: 148, padding: "8px 10px" }}
+          />
+          {(dateFrom !== DEFAULT_FROM || dateUntil !== DEFAULT_UNTIL) && (
             <button
-              key={cat}
-              onClick={() => setFilter(cat)}
+              onClick={() => { setDateFrom(DEFAULT_FROM); setDateUntil(DEFAULT_UNTIL); }}
               style={{
-                padding: "7px 14px", borderRadius: 8,
-                border: `1px solid ${filter === cat ? C.green : C.border}`,
-                background: filter === cat ? C.green : "transparent",
-                color: filter === cat ? C.white : C.textMid,
-                fontSize: 12, fontWeight: 600, cursor: "pointer",
-                fontFamily: "DM Sans, sans-serif", transition: "all 0.15s",
+                background: "none", border: `1px solid ${C.border}`, borderRadius: 8,
+                color: C.textMid, fontSize: 11, fontWeight: 600, padding: "7px 10px",
+                cursor: "pointer", fontFamily: "DM Sans, sans-serif", whiteSpace: "nowrap",
               }}
             >
-              {cat}
+              Resetear
             </button>
-          ))}
+          )}
         </div>
+      </div>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 16 }}>
+        {CATS.map((cat) => (
+          <button
+            key={cat}
+            onClick={() => setFilter(cat)}
+            style={{
+              padding: "7px 14px", borderRadius: 8,
+              border: `1px solid ${filter === cat ? C.green : C.border}`,
+              background: filter === cat ? C.green : "transparent",
+              color: filter === cat ? C.white : C.textMid,
+              fontSize: 12, fontWeight: 600, cursor: "pointer",
+              fontFamily: "DM Sans, sans-serif", transition: "all 0.15s",
+            }}
+          >
+            {cat}
+          </button>
+        ))}
       </div>
 
       {/* Table */}
@@ -655,6 +694,8 @@ function VentasTab({ user, perfil, tipoContribuyente }) {
   const [loading, setLoading] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState(NOW.getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(NOW.getFullYear());
+  const [dateFrom, setDateFrom] = useState(DEFAULT_FROM);
+  const [dateUntil, setDateUntil] = useState(DEFAULT_UNTIL);
   const [showModal, setShowModal] = useState(false);
 
   const hasIVA = TIPOS_CON_IVA.includes(tipoContribuyente);
@@ -680,7 +721,15 @@ function VentasTab({ user, perfil, tipoContribuyente }) {
     return d.getFullYear() === selectedYear && d.getMonth() + 1 === selectedMonth;
   });
 
+  const ventasFiltradas = ventas.filter((v) => {
+    const d = v.fecha || "";
+    if (dateFrom && d < dateFrom) return false;
+    if (dateUntil && d > dateUntil) return false;
+    return true;
+  });
+
   const totalMes = ventasMes.reduce((a, v) => a + (v.monto || 0), 0);
+  const totalRango = ventasFiltradas.reduce((a, v) => a + (v.monto || 0), 0);
 
   const navegarAIVA = () => {
     if (tipoContribuyente === "rimpe_emprendedor") {
@@ -749,13 +798,35 @@ function VentasTab({ user, perfil, tipoContribuyente }) {
       </div>
 
       {/* Filter row + add button */}
-      <div style={{ display: "flex", gap: 10, marginBottom: 20, alignItems: "center", flexWrap: "wrap" }}>
-        <select value={selectedMonth} onChange={(e) => setSelectedMonth(+e.target.value)} style={SELECT_STYLE}>
-          {MESES.map((m, i) => <option key={i + 1} value={i + 1}>{m}</option>)}
-        </select>
-        <select value={selectedYear} onChange={(e) => setSelectedYear(+e.target.value)} style={SELECT_STYLE}>
-          {YEARS.map((y) => <option key={y} value={y}>{y}</option>)}
-        </select>
+      <div style={{ display: "flex", gap: 10, marginBottom: 12, alignItems: "center", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ color: C.textDim, fontSize: 12, fontWeight: 600, whiteSpace: "nowrap" }}>Desde</span>
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            style={{ ...INPUT, width: 148, padding: "8px 10px" }}
+          />
+          <span style={{ color: C.textDim, fontSize: 12, fontWeight: 600, whiteSpace: "nowrap" }}>Hasta</span>
+          <input
+            type="date"
+            value={dateUntil}
+            onChange={(e) => setDateUntil(e.target.value)}
+            style={{ ...INPUT, width: 148, padding: "8px 10px" }}
+          />
+          {(dateFrom !== DEFAULT_FROM || dateUntil !== DEFAULT_UNTIL) && (
+            <button
+              onClick={() => { setDateFrom(DEFAULT_FROM); setDateUntil(DEFAULT_UNTIL); }}
+              style={{
+                background: "none", border: `1px solid ${C.border}`, borderRadius: 8,
+                color: C.textMid, fontSize: 11, fontWeight: 600, padding: "7px 10px",
+                cursor: "pointer", fontFamily: "DM Sans, sans-serif", whiteSpace: "nowrap",
+              }}
+            >
+              Resetear
+            </button>
+          )}
+        </div>
         <div style={{ flex: 1 }} />
         <button
           onClick={() => setShowModal(true)}
@@ -771,12 +842,27 @@ function VentasTab({ user, perfil, tipoContribuyente }) {
         </button>
       </div>
 
+      {/* Range summary */}
+      {ventasFiltradas.length > 0 && (
+        <div style={{ display: "flex", gap: 12, marginBottom: 20 }}>
+          {[
+            { label: "Total en rango", value: fmt(totalRango), color: C.text },
+            { label: "Facturas", value: ventasFiltradas.length, color: C.green },
+          ].map((s, i) => (
+            <div key={i} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: "12px 18px", display: "flex", flexDirection: "column", gap: 3, boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
+              <p style={{ color: C.textDim, fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>{s.label}</p>
+              <p style={{ color: s.color, fontSize: 18, fontWeight: 800, fontFamily: "Syne, sans-serif" }}>{s.value}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Ventas list */}
-      {ventasMes.length === 0 ? (
+      {ventasFiltradas.length === 0 ? (
         <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16, padding: 48, textAlign: "center" }}>
           <Icon name="receipt" color={C.textDim} size={40} />
           <p style={{ color: C.textDim, fontSize: 14, fontWeight: 600, marginTop: 16, marginBottom: 6 }}>
-            Sin ingresos en {MESES[selectedMonth - 1]} {selectedYear}
+            Sin ingresos en el rango seleccionado
           </p>
           <p style={{ color: C.textDim, fontSize: 12 }}>
             Usa el botón "Agregar ingreso" para registrar tus facturas emitidas.
@@ -791,7 +877,7 @@ function VentasTab({ user, perfil, tipoContribuyente }) {
             ))}
           </div>
           {/* Rows */}
-          {ventasMes.map((v, i) => {
+          {ventasFiltradas.map((v, i) => {
             const iva = v.tarifa_iva;
             const total = iva != null ? (v.monto || 0) * (1 + iva / 100) : v.monto || 0;
             const estadoColor = v.estado_cobro === "cobrado" ? C.greenAccent : C.orange;
@@ -801,7 +887,7 @@ function VentasTab({ user, perfil, tipoContribuyente }) {
                 style={{
                   display: "grid", gridTemplateColumns: "1.6fr 1.4fr 90px 100px 60px 100px 120px",
                   padding: "14px 20px",
-                  borderBottom: i < ventasMes.length - 1 ? `1px solid ${C.border}` : "none",
+                  borderBottom: i < ventasFiltradas.length - 1 ? `1px solid ${C.border}` : "none",
                   alignItems: "center",
                 }}
               >
